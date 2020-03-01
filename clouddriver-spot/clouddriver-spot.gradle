@@ -1,0 +1,54 @@
+repositories {
+  maven {
+    url '../../../Development/spotinst-sdk-java'
+  }
+}
+
+dependencies {
+  implementation project(":cats:cats-core")
+  implementation project(":clouddriver-core")
+  implementation project(":clouddriver-eureka")
+  implementation project(":clouddriver-security")
+
+  compileOnly "org.projectlombok:lombok"
+  annotationProcessor "org.projectlombok:lombok"
+  testAnnotationProcessor "org.projectlombok:lombok"
+
+  //implementation files('../../../../Development/spotinst-sdk-java/build/libs/spotinst-sdk-java-1.0.18.jar')
+  implementation project(":spotinst-sdk-java:1.0.18")
+  implementation "com.github.ben-manes.caffeine:guava"
+  implementation "com.netflix.awsobjectmapper:awsobjectmapper"
+  implementation "com.netflix.frigga:frigga"
+  implementation "com.netflix.spinnaker.fiat:fiat-api:$fiatVersion"
+  implementation "com.netflix.spinnaker.fiat:fiat-core:$fiatVersion"
+  implementation "com.netflix.spinnaker.kork:kork-core"
+  implementation "com.netflix.spinnaker.kork:kork-aws"
+  implementation "com.netflix.spinnaker.kork:kork-exceptions"
+  implementation "com.netflix.spinnaker.kork:kork-security"
+  implementation "com.netflix.spinnaker.moniker:moniker"
+  implementation "com.squareup.okhttp:okhttp"
+  implementation "com.squareup.okhttp:okhttp-apache"
+  implementation "com.squareup.okhttp:okhttp-urlconnection"
+  implementation "com.squareup.retrofit:converter-jackson"
+  implementation "com.squareup.retrofit:retrofit"
+  implementation "io.reactivex:rxjava"
+  implementation "org.apache.httpcomponents:httpclient"
+  implementation "org.apache.httpcomponents:httpcore"
+  implementation "org.codehaus.groovy:groovy-all"
+  implementation "org.springframework.boot:spring-boot-actuator"
+  implementation "org.springframework.boot:spring-boot-starter-web"
+  implementation 'com.aestasit.infrastructure.sshoogr:sshoogr:0.9.25'
+  implementation 'com.jcraft:jsch.agentproxy.connector-factory:0.0.9'
+  implementation 'com.jcraft:jsch.agentproxy.jsch:0.0.9'
+
+
+  testImplementation "com.netflix.spinnaker.kork:kork-exceptions"
+  testImplementation "cglib:cglib-nodep"
+  testImplementation "com.natpryce:hamkrest"
+  testImplementation "junit:junit"
+  testImplementation "org.objenesis:objenesis"
+  testImplementation "org.spockframework:spock-core"
+  testImplementation "org.spockframework:spock-spring"
+  testImplementation "org.springframework.boot:spring-boot-starter-test"
+  testImplementation "org.springframework:spring-test"
+}
