@@ -17,16 +17,15 @@
 package com.netflix.spinnaker.clouddriver.spot.security;
 
 import com.spotinst.sdkjava.SpotinstClient;
+import com.spotinst.sdkjava.model.SpotinstElastigroupClient;
 
-/**
- * Provider of Spot SDK Clients
- */
+/** Provider of Spot SDK Clients */
 public class SpotClientProvider {
 
   private static final String api_token =
-    "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzcG90aW5zdCIsImV4cCI6MTg5NzgzMzIwMiwiaWF0IjoxNTgyNDczMjAyLCJ1aWQiOi0xLCJyb2xlIjoyLCJvaWQiOiI2MDYwNzk4NzUxMjMifQ.ium5OmDpFWNpA7RQhnRAOtFPtUfdZheJyHpZHTaDJQM";
+      "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzcG90aW5zdCIsImV4cCI6MTg5NzgzMzIwMiwiaWF0IjoxNTgyNDczMjAyLCJ1aWQiOi0xLCJyb2xlIjoyLCJvaWQiOiI2MDYwNzk4NzUxMjMifQ.ium5OmDpFWNpA7RQhnRAOtFPtUfdZheJyHpZHTaDJQM";
 
-  public com.spotinst.sdkjava.model.SpotinstElastigroupClient getElastigroupClient(String accountId) {
+  public SpotinstElastigroupClient getElastigroupClient(String accountId) {
     return SpotinstClient.getElastigroupClient(api_token, accountId);
   }
 }
