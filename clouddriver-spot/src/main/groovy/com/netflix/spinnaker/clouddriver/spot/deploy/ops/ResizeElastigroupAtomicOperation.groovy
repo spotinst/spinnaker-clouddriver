@@ -46,20 +46,19 @@ class ResizeElastigroupAtomicOperation implements AtomicOperation<Void> {
     task.updateStatus PHASE, "Initializing Resize ELASTIGROUP operation for $descriptor..."
 
     for (elastigroup in description.elastigroups) {
-      resizeElastigroup(elastigroup.serverGroupName, elastigroup.region, elastigroup.capacity, elastigroup.elastigroupId)
+      resizeElastigroup(elastigroup.serverGroupName, elastigroup.capacity, elastigroup.elastigroupId)
     }
     task.updateStatus PHASE, "Finished Resize ELASTIGROUP operation for $descriptor."
     null
   }
 
   private void resizeElastigroup(String elastigroupName,
-                                 String region,
                                  ServerGroup.Capacity capacity,
                                  String elastigroupId) {
-    task.updateStatus PHASE, "Beginning resize of ${elastigroupName} in ${region} to ${capacity}."
+    task.updateStatus PHASE, "Beginning resize of ${elastigroupName} to ${capacity}."
 
     if (capacity.min == null && capacity.max == null && capacity.desired == null) {
-      task.updateStatus PHASE, "Skipping resize of ${elastigroupName} in ${region}, at least one field in ${capacity} needs to be non-null"
+      task.updateStatus PHASE, "Skipping resize of ${elastigroupName}, at least one field in ${capacity} needs to be non-null"
       return
     }
 
@@ -69,7 +68,7 @@ class ResizeElastigroupAtomicOperation implements AtomicOperation<Void> {
     def elastigroupToResize = elastigroupClient.getElastigroup(getElastigroupRequest)
 
     if (elastigroupToResize == null) {
-      task.updateStatus PHASE, "Skipping resize of ${elastigroupName} with id ${elastigroupId} in ${region}, server group does not exist"
+      task.updateStatus PHASE, "Skipping resize of ${elastigroupName} with id ${elastigroupId}, server group does not exist"
       return
     }
 
@@ -82,10 +81,10 @@ class ResizeElastigroupAtomicOperation implements AtomicOperation<Void> {
     def updatedSuccessfully = elastigroupClient.updateElastigroup(updateElastigroupRequest, elastigroupId)
 
     if (!updatedSuccessfully) {
-      task.updateStatus PHASE, "Elasigroup: ${elastigroupName} in ${region} was not resized"
+      task.updateStatus PHASE, "Elasigroup: ${elastigroupName} was not resized"
       return
     }
 
-    task.updateStatus PHASE, "Completed resize of ${elastigroupName} in ${region}."
+    task.updateStatus PHASE, "Completed resize of ${elastigroupName}."
   }
 }

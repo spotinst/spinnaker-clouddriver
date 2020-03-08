@@ -201,13 +201,19 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
         log.warn("Failed to cache ${elastigroup.name} in ${accountName}/${elastigroup.region}", ex)
       }
     }
-
-    return new DefaultCacheResult(
+    def result = new DefaultCacheResult(
       [
         (APPLICATIONS.ns) : applications.values(),
         (CLUSTERS.ns)     : clusters.values(),
         (SERVER_GROUPS.ns): serverGroups.values()
       ])
+
+    def cacheResults = result.cacheResults
+
+    log.debug("Caching ${cacheResults[CLUSTERS.ns]?.size()} clusters in ${agentType}")
+    log.debug("Caching ${cacheResults[SERVER_GROUPS.ns]?.size()} server groups in ${agentType}")
+
+    return result
   }
 
 
@@ -276,6 +282,7 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
       attributes.elastigroup = objectMapper.convertValue(data.elastigroup, ATTRIBUTES)
       attributes.region = data.elastigroup.region
       attributes.name = data.elastigroup.name
+      attributes.cluster = data.name.cluster
       Set<String> availabilityZones = data.elastigroup.getCompute().getAvailabilityZones().stream().map({ placement -> placement.getAzName() }).collect(Collectors.toSet());
       attributes.zones = availabilityZones
       attributes.launchConfig = data.elastigroup.compute.launchSpecification

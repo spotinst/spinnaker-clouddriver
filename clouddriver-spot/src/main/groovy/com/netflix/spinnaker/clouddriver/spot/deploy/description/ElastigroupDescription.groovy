@@ -26,16 +26,15 @@ class ElastigroupDescription {
     return elastigroupId
   }
 
+  String getRegion() {
+    return region
+  }
+
   String getServerGroupName() {
     return serverGroupName
   }
 
-  @Deprecated
-  String getElastigroupName() {
-    return getServerGroupName()
-  }
-
   String toString() {
-    return "${region}:${getServerGroupName()}"
+    return "${elastigroupId}:${getServerGroupName()}"
   }
 }

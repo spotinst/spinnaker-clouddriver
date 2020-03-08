@@ -1,11 +1,11 @@
 /*
- * Copyright 2014 Netflix, Inc.
+ * Copyright 2020 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,27 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.netflix.spinnaker.clouddriver.spot.deploy.description
 
-import com.netflix.spinnaker.clouddriver.model.ServerGroup
+import com.netflix.spinnaker.clouddriver.deploy.description.EnableDisableDescriptionTrait
 import com.netflix.spinnaker.clouddriver.security.resources.ServerGroupsNameable
 
-class ResizeElastigroupDescription extends AbstractSpotCredentialsDescription implements ServerGroupsNameable {
-  List<ElastigroupTargetDescription> elastigroups = []
+/**
+ * "Enabling" means adding a server group to the target pool of each of its network load balancers.
+ *
+ * "Disabling" means removing a server group from the target pool of each of its network load balancers.
+ */
+class EnableDisableSpotServerGroupDescription extends AbstractSpotCredentialsDescription implements ServerGroupsNameable, EnableDisableDescriptionTrait {
+
+  String region
+  String accountName
+  String elastigroupId
 
   @Override
   Collection<String> getServerGroupNames() {
-    return elastigroups.collect { it.serverGroupName }
-  }
-
-
-  static class ElastigroupTargetDescription extends ElastigroupDescription {
-    ServerGroup.Capacity capacity = new ServerGroup.Capacity()
-
-    @Override
-    String toString() {
-      "elastigroupId: $elastigroupId, serverGroupName: $serverGroupName, capacity: [$capacity]"
-    }
+    return [getServerGroupName()]
   }
 }
