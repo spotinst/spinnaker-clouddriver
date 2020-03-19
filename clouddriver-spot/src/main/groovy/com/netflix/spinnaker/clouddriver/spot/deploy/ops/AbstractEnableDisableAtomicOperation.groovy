@@ -20,6 +20,7 @@ import com.netflix.spinnaker.clouddriver.data.task.Task
 import com.netflix.spinnaker.clouddriver.data.task.TaskRepository
 import com.netflix.spinnaker.clouddriver.orchestration.AtomicOperation
 import com.netflix.spinnaker.clouddriver.spot.deploy.description.EnableDisableSpotServerGroupDescription
+import com.spotinst.sdkjava.model.*
 import org.springframework.beans.factory.annotation.Autowired
 
 abstract class AbstractEnableDisableAtomicOperation implements AtomicOperation<Void> {
@@ -45,13 +46,35 @@ abstract class AbstractEnableDisableAtomicOperation implements AtomicOperation<V
 
     task.updateStatus phaseName, "Initializing $verb server group operation for $description.serverGroupName in " +
       "$description.region..."
+    String elastigroupId = description.elastigroupId
 
     if (disable) {
-      task.updateStatus phaseName, "$presentParticipling server group from Http(s) load balancers..."
-      //todo yossi - implement
+      task.updateStatus phaseName, "$presentParticipling server group from load balancers and scaling policies..."
+      def scalingConfigurationBuilder = ElastigroupScalingConfiguration.Builder.get()
+      def computeConfigurationBuilder = ElastigroupComputeConfiguration.Builder.get()
+      def launchSpecConfigurationBuilder = ElastigroupLaunchSpecification.Builder.get()
+      def loadBalancerConfigBuilder = LoadBalancersConfig.Builder.get()
+
+      def loadBalancersConfig = loadBalancerConfigBuilder.setLoadBalancers(null).build()
+      ElastigroupLaunchSpecification launchSpecification = launchSpecConfigurationBuilder.setLoadBalancersConfig(loadBalancersConfig).build()
+
+      ElastigroupScalingConfiguration newScalingConfiguration = scalingConfigurationBuilder.setDown(null).setUp(null).build()
+      ElastigroupComputeConfiguration newComputeConfiguration = computeConfigurationBuilder.setLaunchSpecification(launchSpecification).build()
+
+      def elastigroupBuilder = Elastigroup.Builder.get()
+      def updatedElastigroup = elastigroupBuilder.setScaling(newScalingConfiguration).setCompute(newComputeConfiguration).build()
+      def updateElastigroupBuilder = ElastigroupUpdateRequest.Builder.get()
+      def updateElastigroupRequest = updateElastigroupBuilder.setElastigroup(updatedElastigroup).build()
+
+      def updatedSuccessfully = description.credentials.getElastigroupClient().updateElastigroup(updateElastigroupRequest, elastigroupId)
+
+      if (updatedSuccessfully) {
+        task.updateStatus phaseName, "Successfully disabled elastigroup..."
+
+      }
     } else {
-      task.updateStatus phaseName, "Registering server group with Http(s) load balancers..."
-      //todo yossi - implement
+      //todo yossi should throw?
+      task.updateStatus phaseName, "Registering server group with load balancers..."
     }
 
     task.updateStatus phaseName, "$presentParticipling server group $description.serverGroupName in $description.region..."

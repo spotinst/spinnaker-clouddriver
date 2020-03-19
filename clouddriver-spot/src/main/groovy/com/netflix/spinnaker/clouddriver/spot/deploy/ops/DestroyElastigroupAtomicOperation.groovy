@@ -23,10 +23,8 @@ import com.netflix.spinnaker.clouddriver.orchestration.events.DeleteServerGroupE
 import com.netflix.spinnaker.clouddriver.orchestration.events.OperationEvent
 import com.netflix.spinnaker.clouddriver.spot.SpotCloudProvider
 import com.netflix.spinnaker.clouddriver.spot.deploy.description.DestroyElastigroupDescription
-import com.netflix.spinnaker.clouddriver.spot.security.SpotClientProvider
 import com.spotinst.sdkjava.model.ElastigroupDeletionRequest
 import com.spotinst.sdkjava.model.ElastigroupGetRequest
-import org.springframework.beans.factory.annotation.Autowired
 
 class DestroyElastigroupAtomicOperation implements AtomicOperation<Void> {
   private static final String BASE_PHASE = "DESTROY_ELASTIGROUP"
@@ -48,8 +46,9 @@ class DestroyElastigroupAtomicOperation implements AtomicOperation<Void> {
     task.updateStatus BASE_PHASE, "Initializing ELASTIGROUP Destroy operation for $descriptor..."
 
     String accountId = description.credentials.accountId
+
     for (elastigroup in description.elastigroups) {
-      deleteElastigroup(elastigroup.elastigroupId, accountId)
+      deleteElastigroup(elastigroup.elastigroupId)
       events << new DeleteServerGroupEvent(
         SpotCloudProvider.ID, accountId, elastigroup.region, elastigroup.serverGroupName
       )
@@ -64,12 +63,11 @@ class DestroyElastigroupAtomicOperation implements AtomicOperation<Void> {
     return events
   }
 
-  private void deleteElastigroup(String elastigroupId, String accountId) {
+  private void deleteElastigroup(String elastigroupId) {
 
-    def elastigroupClient = new SpotClientProvider().getElastigroupClient(accountId)
     def getRequestBuilder = ElastigroupGetRequest.Builder.get()
     def getElastigroupRequest = getRequestBuilder.setElastigroupId(elastigroupId).build()
-    def elastigroupToDestroy = elastigroupClient.getElastigroup(getElastigroupRequest)
+    def elastigroupToDestroy = description.credentials.elastigroupClient.getElastigroup(getElastigroupRequest)
 
     if (!elastigroupToDestroy) {
       task.updateStatus BASE_PHASE, "Skipping destruction of $description.elastigroupName with id $elastigroupId - server group does not exist"
@@ -78,7 +76,7 @@ class DestroyElastigroupAtomicOperation implements AtomicOperation<Void> {
 
     def destroyRequestBuilder = ElastigroupDeletionRequest.Builder.get()
     def destroyElastigroupRequest = destroyRequestBuilder.setElastigroupId(elastigroupId).build()
-    Boolean deleted = elastigroupClient.deleteElastigroup(destroyElastigroupRequest)
+    Boolean deleted = description.credentials.elastigroupClient.deleteElastigroup(destroyElastigroupRequest)
 
     if (!deleted) {
       task.updateStatus BASE_PHASE, "Elasigroup: ${description.elastigroupName} was not destroyed"

@@ -53,6 +53,7 @@ class SpotCredentialsInitializer {
         def spotAccount = new SpotAccountCredentials.Builder().name(managedAccount.name).
           environment(managedAccount.environment ?: managedAccount.name).
           accountType(managedAccount.accountType ?: managedAccount.name).
+          apiToken(spotConfigurationProperties.apiToken).
           requiredGroupMembership(managedAccount.requiredGroupMembership).
           accountId(managedAccount.accountId).
           build()

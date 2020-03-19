@@ -30,7 +30,6 @@ import com.netflix.spinnaker.clouddriver.spot.SpotCloudProvider
 import com.netflix.spinnaker.clouddriver.spot.cache.Keys
 import com.netflix.spinnaker.clouddriver.spot.provider.view.MutableCacheData
 import com.netflix.spinnaker.clouddriver.spot.security.SpotAccountCredentials
-import com.netflix.spinnaker.clouddriver.spot.security.SpotClientProvider
 import com.spotinst.sdkjava.model.Elastigroup
 import com.spotinst.sdkjava.model.ElastigroupGetAllRequest
 import org.slf4j.Logger
@@ -113,7 +112,7 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
 
     Long start = System.currentTimeMillis()
 
-    def elastigroups = loadElastigroups(new SpotClientProvider())
+    def elastigroups = loadElastigroups()
 
     def evictableOnDemandCacheDatas = []
     def usableOnDemandCacheDatas = []
@@ -172,11 +171,10 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
   }
 
 
-  private List<Elastigroup> loadElastigroups(SpotClientProvider clientProvider) {
+  private List<Elastigroup> loadElastigroups() {
     //todo yossi - change to multiple esgs
     log.debug("Describing Elastigroups in ${agentType}")
-
-    def elastigroupClient  = clientProvider.getElastigroupClient(account.accountId)
+    def elastigroupClient  = this.account.elastigroupClient
 
     ElastigroupGetAllRequest getAllElastigroupsRequest = ElastigroupGetAllRequest.Builder.get().build()
     def elastigroups = elastigroupClient.getAllElastigroups(getAllElastigroupsRequest)

@@ -31,4 +31,6 @@ class SpotConfigurationProperties {
   }
 
   List<ManagedAccount> accounts = []
+  String apiToken
+
 }

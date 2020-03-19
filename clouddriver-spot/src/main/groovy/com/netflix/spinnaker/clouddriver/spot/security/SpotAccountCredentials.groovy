@@ -28,12 +28,10 @@ class SpotAccountCredentials implements AccountCredentials<Object> {
   String accountId
   SpotinstElastigroupClient elastigroupClient
 
-  SpotAccountCredentials(String name, String accountId) {
+  SpotAccountCredentials(String name, String accountId, String apiToken) {
     this.name = name
     this.accountId = accountId
-    String auth_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzcG90aW5zdCIsImV4cCI6MTgyNDM3NjIxNCwidWlkIjotMSwicm9sZSI6Miwib2lkIjo2MDYwNzk4NjIyNjEsImlhdCI6MTUwOTAxNjIxNH0.ptsB3-cUeIVflzeJnSfJDV2YeDXrPfooJbisFcuGVx0"
-    this.elastigroupClient = new SpotinstElastigroupClient(auth_token, accountId);
-
+    this.elastigroupClient = new SpotinstElastigroupClient(apiToken, accountId)
   }
 
   @Override
@@ -63,6 +61,7 @@ class SpotAccountCredentials implements AccountCredentials<Object> {
     String accountType
     List<String> requiredGroupMembership = []
     String accountId
+    String apiToken
 
     Builder name(String name) {
       this.name = name
@@ -89,10 +88,16 @@ class SpotAccountCredentials implements AccountCredentials<Object> {
       return this
     }
 
+    Builder apiToken(String apiToken) {
+      this.apiToken = apiToken
+      return this
+    }
+
     SpotAccountCredentials build() {
       return new SpotAccountCredentials(
         this.name,
-        this.accountId)
+        this.accountId,
+        this.apiToken)
     }
   }
 }

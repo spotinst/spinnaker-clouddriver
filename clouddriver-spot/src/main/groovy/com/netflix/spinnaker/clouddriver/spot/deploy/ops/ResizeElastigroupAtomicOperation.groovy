@@ -21,7 +21,6 @@ import com.netflix.spinnaker.clouddriver.data.task.TaskRepository
 import com.netflix.spinnaker.clouddriver.model.ServerGroup
 import com.netflix.spinnaker.clouddriver.orchestration.AtomicOperation
 import com.netflix.spinnaker.clouddriver.spot.deploy.description.ResizeElastigroupDescription
-import com.netflix.spinnaker.clouddriver.spot.security.SpotClientProvider
 import com.spotinst.sdkjava.model.Elastigroup
 import com.spotinst.sdkjava.model.ElastigroupCapacityConfiguration
 import com.spotinst.sdkjava.model.ElastigroupGetRequest
@@ -62,10 +61,9 @@ class ResizeElastigroupAtomicOperation implements AtomicOperation<Void> {
       return
     }
 
-    def elastigroupClient = new SpotClientProvider().getElastigroupClient(description.credentials.accountId)
     def getRequestBuilder = ElastigroupGetRequest.Builder.get()
     def getElastigroupRequest = getRequestBuilder.setElastigroupId(elastigroupId).build()
-    def elastigroupToResize = elastigroupClient.getElastigroup(getElastigroupRequest)
+    def elastigroupToResize = description.credentials.elastigroupClient.getElastigroup(getElastigroupRequest)
 
     if (elastigroupToResize == null) {
       task.updateStatus PHASE, "Skipping resize of ${elastigroupName} with id ${elastigroupId}, server group does not exist"
@@ -78,7 +76,7 @@ class ResizeElastigroupAtomicOperation implements AtomicOperation<Void> {
     def elastigroupWithUpdatedCapacity = elastigroupBuilder.setCapacity(newCapacityConfig).build()
     def updateElastigroupBuilder = ElastigroupUpdateRequest.Builder.get()
     def updateElastigroupRequest = updateElastigroupBuilder.setElastigroup(elastigroupWithUpdatedCapacity).build()
-    def updatedSuccessfully = elastigroupClient.updateElastigroup(updateElastigroupRequest, elastigroupId)
+    def updatedSuccessfully = description.credentials.elastigroupClient.updateElastigroup(updateElastigroupRequest, elastigroupId)
 
     if (!updatedSuccessfully) {
       task.updateStatus PHASE, "Elasigroup: ${elastigroupName} was not resized"
