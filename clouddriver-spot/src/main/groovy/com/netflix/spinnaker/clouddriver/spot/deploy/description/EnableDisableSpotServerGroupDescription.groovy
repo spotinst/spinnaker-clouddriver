@@ -14,23 +14,11 @@
  * limitations under the License.
  */
 package com.netflix.spinnaker.clouddriver.spot.deploy.description
-
-import com.netflix.spinnaker.clouddriver.deploy.description.EnableDisableDescriptionTrait
-import com.netflix.spinnaker.clouddriver.security.resources.ServerGroupsNameable
-
 /**
  * "Enabling" means adding a server group to the target pool of each of its network load balancers.
  *
  * "Disabling" means removing a server group from the target pool of each of its network load balancers.
  */
-class EnableDisableSpotServerGroupDescription extends AbstractSpotCredentialsDescription implements ServerGroupsNameable, EnableDisableDescriptionTrait {
+class EnableDisableSpotServerGroupDescription extends ElastigroupDescription {
 
-  String region
-  String accountName
-  String elastigroupId
-
-  @Override
-  Collection<String> getServerGroupNames() {
-    return [getServerGroupName()]
-  }
 }

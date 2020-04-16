@@ -23,16 +23,11 @@ import groovy.util.logging.Slf4j
 class Keys {
 
   static enum Namespace {
-
+    //todo yossi - remove unnecessary
     APPLICATIONS,
     SERVER_GROUPS,
     CLUSTERS,
-    NETWORKS,
-    SUBNETS,
-    IMAGES,
-    SECURITY_GROUPS,
-    INSTANCES,
-    LOADBALANCERS
+    INSTANCES
 
     static String provider = SpotCloudProvider.ID
 
@@ -76,21 +71,6 @@ class Keys {
           id     : parts[5]
         ]
         break
-      case Namespace.NETWORKS.ns:
-        result << [
-          name   : parts[2],
-          id     : parts[3],
-          region : parts[4],
-          account: parts[5]
-        ]
-        break
-      case Namespace.SUBNETS.ns:
-        result << [
-          id     : parts[2],
-          region : parts[3],
-          account: parts[4]
-        ]
-        break
       case Namespace.SERVER_GROUPS.ns:
         def names = Names.parseName(parts[5])
         result << [
@@ -104,31 +84,6 @@ class Keys {
           name       : parts[5]
         ]
         break
-      case Namespace.IMAGES.ns:
-        result << [
-          account: parts[2],
-          region : parts[3],
-          imageId: parts[4]
-        ]
-        break
-      case Namespace.SECURITY_GROUPS.ns:
-        def names = Names.parseName(parts[2])
-        result << [
-          application: names.app,
-          name       : parts[2],
-          id         : parts[3],
-          region     : parts[4],
-          account    : parts[5]
-        ]
-        break
-      case Namespace.LOADBALANCERS.ns:
-        result << [
-          name   : parts[2],
-          id     : parts[3],
-          region : parts[4],
-          account: parts[5]
-        ]
-        break
       default:
         return null
         break
@@ -137,35 +92,8 @@ class Keys {
     result
   }
 
-  static String getSecurityGroupKey(String securityGroupName,
-                                    String securityGroupId,
-                                    String region,
-                                    String account) {
-    "$SpotCloudProvider.ID:${Namespace.SECURITY_GROUPS}:${securityGroupName}:${securityGroupId}:${region}:${account}"
-  }
-
-  static String getImageKey(String account, String region, String imageId) {
-    "$SpotCloudProvider.ID:${Namespace.IMAGES}:${account}:${region}:${imageId}"
-  }
-
-  static String getInstanceKey(String account,
-                               String region,
-                               String name,
-                               String id) {
-    "$SpotCloudProvider.ID:${Namespace.INSTANCES}:${account}:${region}:${name}:${id}"
-  }
-
-  static String getNetworkKey(String networkName,
-                              String networkId,
-                              String region,
-                              String account) {
-    "$SpotCloudProvider.ID:${Namespace.NETWORKS}:${networkName}:${networkId}:${region}:${account}"
-  }
-
-  static String getSubnetKey(String subnetId,
-                             String region,
-                             String account) {
-    "$SpotCloudProvider.ID:${Namespace.SUBNETS}:${subnetId}:${region}:${account}"
+  static String getInstanceKey(String instanceId, String account, String region) {
+    "${SpotCloudProvider.ID}:${Namespace.INSTANCES}:${account}:${region}:${instanceId}"
   }
 
   static String getServerGroupKey(String cluster, String elastigroupName, String account, String region) {
@@ -175,13 +103,6 @@ class Keys {
   static String getServerGroupKey(String elastigroupName, String account, String region) {
     Names names = Names.parseName(elastigroupName)
     return getServerGroupKey(names.cluster, names.group, account, region)
-  }
-
-  static String getLoadBalancerKey(String loadBalancerName,
-                                   String loadBalancerId,
-                                   String region,
-                                   String account) {
-    "$SpotCloudProvider.ID:${Namespace.NETWORKS}:${loadBalancerName}:${loadBalancerId}:${region}:${account}"
   }
 
   static String getApplicationKey(String application) {

@@ -178,58 +178,8 @@ class SpotClusterProvider implements ClusterProvider<SpotCluster>, ServerGroupPr
   }
 
   private static Map<String, Set<SpotCluster>> mapResponse(Collection<SpotCluster> clusters) {
-    clusters.groupBy { it.accountName }.collectEntries { k, v -> [k, new HashSet(v)] }
+    clusters.groupBy { it.accountName }.collectEntries { k, v -> [k, new HashSet(v)] } as Map<String, Set<SpotCluster>>
   }
-
-//  private Map<String, Set<SpotCluster>> getClusters00(String applicationName, boolean includeDetails) {
-//    Collection<String> identifiers = cacheView.getIdentifiers(Keys.Namespace.SERVER_GROUPS.ns).findAll {
-//      applicationName == Keys.parse(it)?.get("application")
-//    }
-//
-//    Set<SpotServerGroup> serverGroups = loadServerGroups(identifiers)
-//    return clustersFromServerGroups(serverGroups).groupBy { it.accountName }
-//
-//  }
-//
-//  private Set<SpotCluster> clustersFromServerGroups(Set<SpotServerGroup> serverGroups) {
-//    Map<String, List<SpotServerGroup>> byClusterName = serverGroups.groupBy {
-//      Names.parseName(it.name).cluster
-//    }
-//
-//    //todo yossi make it more groovy
-//    def account
-//
-//    for (SpotServerGroup ssg : serverGroups) {
-//      Map<String, String> clusterKey = Keys.parse(ssg.id)
-//
-//    }
-//
-//    return byClusterName.collect { k, v ->
-//      new SpotCluster(
-//        name: k,
-//        accountName: accountFromServerGroups(v),
-//        serverGroups: v as Set<SpotServerGroup>
-//      )
-//    }
-//  }
-
-
-//  private Map<String, Set<SpotCluster>> getClusters0(String applicationName, boolean includeDetails) {
-//    CacheData application = cacheView.get(APPLICATIONS.ns, Keys.getApplicationKey(applicationName))
-//
-//    Collection<String> identifiers = cacheView.getIdentifiers(Keys.Namespace.SERVER_GROUPS.ns)
-//      .findAll { applicationName == Keys.parse(it)?.get("application")}
-//
-//    Set<SpotServerGroup> serverGroups = loadServerGroups(identifiers)
-//    clustersFromServerGroups(serverGroups).groupBy { it.accountName }
-//
-//    return clustersFromServerGroups(serverGroups).groupBy { it.accountName }
-//
-//    Collection<SpotCluster> retVal = cacheView.getAll(Keys.Namespace.CLUSTERS.ns)
-//      .findAll { applicationName == Keys.parse(it.id)?.get("application")}
-//      .collect { cacheItem -> objectMapper.convertValue(cacheItem.attributes, SpotCluster)}
-//
-//    return retVal.groupBy { it.accountName } as Map<String, Set<SpotCluster>>
 
   private Collection<CacheData> resolveRelationshipData(CacheData source, String relationship) {
     resolveRelationshipData(source, relationship) { true }
@@ -257,23 +207,6 @@ class SpotClusterProvider implements ClusterProvider<SpotCluster>, ServerGroupPr
     mapResponse(clusters)
   }
 
-//    if (application == null) {
-//      return null
-//    }
-//
-//    Collection<SpotCluster> clusters
-//
-//    if (includeDetails && cacheView.supportsGetAllByApplication()) {
-//      clusters = allClustersByApplication(applicationName)
-//    } else {
-//      Collection<CacheData> clusterData = cacheView.getAll(CLUSTERS.ns)
-//      Collection<CacheData> clusterDataInApp = clusterData
-//        .findAll { (applicationName == Names.parseName(it.id).app) }
-//
-//      clusters = translateClusters(clusterDataInApp)
-//    }
-//    mapResponse(clusters)
-
 
   private Collection<SpotCluster> allClustersByApplication(String application) {
     // TODO: only supports the equiv of includeDetails=true, consider adding support for the inverse
@@ -299,20 +232,6 @@ class SpotClusterProvider implements ClusterProvider<SpotCluster>, ServerGroupPr
     }
 
     return clusters
-  }
-
-  private Set<SpotCluster> clustersFromServerGroups(Set<SpotServerGroup> serverGroups) {
-    Map<String, List<SpotServerGroup>> byClusterName = serverGroups.groupBy {
-      Names.parseName(it.name).cluster
-    }
-
-    return byClusterName.collect { k, v ->
-      new SpotCluster(
-        name: k,
-        accountName: accountFromServerGroups(v),
-        serverGroups: v as Set<SpotServerGroup>
-      ).getView()
-    }
   }
 
   private String accountFromServerGroups(List<SpotServerGroup> sgs) {

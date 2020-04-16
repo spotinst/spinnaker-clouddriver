@@ -16,10 +16,10 @@
 
 package com.netflix.spinnaker.clouddriver.spot.deploy.description
 
-class ElastigroupDescription {
-  String serverGroupName
+class ElastigroupDescription extends AbstractSpotCredentialsDescription {
   String elastigroupId
   String region
+  String serverGroupName
 
 
   String getElastigroupId() {
@@ -34,7 +34,14 @@ class ElastigroupDescription {
     return serverGroupName
   }
 
+  @Override
+
+  @Override
   String toString() {
-    return "${elastigroupId}:${getServerGroupName()}"
+    return "ElastigroupDescription{" +
+      "elastigroupId='" + elastigroupId + '\'' +
+      ", region='" + region + '\'' +
+      ", serverGroupName='" + serverGroupName + '\'' +
+      '}';
   }
 }

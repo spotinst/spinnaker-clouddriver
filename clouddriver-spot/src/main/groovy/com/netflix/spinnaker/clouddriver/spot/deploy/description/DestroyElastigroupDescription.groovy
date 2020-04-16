@@ -20,8 +20,6 @@ import com.netflix.spinnaker.clouddriver.security.resources.ServerGroupsNameable
 
 class DestroyElastigroupDescription extends AbstractSpotCredentialsDescription implements ServerGroupsNameable {
 
-  String elastigroupName
-
   List<ElastigroupDescription> elastigroups = []
 
   @Override
