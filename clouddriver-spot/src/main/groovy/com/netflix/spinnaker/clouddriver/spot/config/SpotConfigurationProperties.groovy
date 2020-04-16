@@ -31,6 +31,8 @@ class SpotConfigurationProperties {
   }
 
   List<ManagedAccount> accounts = []
+
+  //taken from the halyard configuration for the spot provider
   String apiToken
 
 }
