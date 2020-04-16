@@ -18,12 +18,14 @@ package com.netflix.spinnaker.clouddriver.spot.model
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter
 import com.fasterxml.jackson.annotation.JsonAnySetter
-import com.netflix.spinnaker.clouddriver.model.HealthState
 import com.netflix.spinnaker.clouddriver.model.Instance
 import com.netflix.spinnaker.clouddriver.model.ServerGroup
 import com.netflix.spinnaker.clouddriver.spot.SpotCloudProvider
 import com.spotinst.sdkjava.model.ElastigroupCapacityConfiguration
+import com.spotinst.sdkjava.model.ElastigroupScalingConfiguration
+import com.spotinst.sdkjava.model.LoadBalancersConfig
 import groovy.transform.CompileStatic
+import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 @CompileStatic
 class SpotServerGroup implements ServerGroup, Serializable {
@@ -33,15 +35,13 @@ class SpotServerGroup implements ServerGroup, Serializable {
   Set<String> zones
   Set<Instance> instances
   Set health
-  Map<String, Object> image
   Map<String, Object> launchConfig
   Map<String, Object> elastigroup
-  Map buildInfo
-  String vpcId
+  LoadBalancersConfig previousLoadBalancersConfig
+  ElastigroupScalingConfiguration previousScalingConfiguation
   final String type = SpotCloudProvider.ID
   final String cloudProvider = SpotCloudProvider.ID
 
-  Set<String> targetGroups
 
   private Map<String, Object> dynamicProperties = new HashMap<String, Object>()
 
@@ -84,15 +84,6 @@ class SpotServerGroup implements ServerGroup, Serializable {
     return loadBalancerNames
   }
 
-  void setTargetGroups() {
-    Set<String> targetGroupNames = []
-    def elastigroup = getElastigroup()
-    if (elastigroup && elastigroup.containsKey("targetGroupNames")) {
-      targetGroupNames = (Set<String>) elastigroup.targetGroupNames
-    }
-    this.targetGroups = targetGroupNames
-  }
-
   @Override
   Set<String> getSecurityGroups() {
     Set<String> securityGroups = []
@@ -103,8 +94,8 @@ class SpotServerGroup implements ServerGroup, Serializable {
   }
 
   @Override
-  ServerGroup.InstanceCounts getInstanceCounts() {
-    new ServerGroup.InstanceCounts(
+  InstanceCounts getInstanceCounts() {
+    new InstanceCounts(
       total: 0,
       up: 0,
       down: 0,
@@ -114,12 +105,12 @@ class SpotServerGroup implements ServerGroup, Serializable {
   }
 
   @Override
-  ServerGroup.Capacity getCapacity() {
+  Capacity getCapacity() {
 
     if (elastigroup && elastigroup.containsKey("capacity")) {
-      ElastigroupCapacityConfiguration capacityConfiguration  = (ElastigroupCapacityConfiguration) elastigroup.capacity
+      ElastigroupCapacityConfiguration capacityConfiguration = (ElastigroupCapacityConfiguration) elastigroup.capacity
 
-      return new ServerGroup.Capacity(
+      return new Capacity(
         min: capacityConfiguration.minimum ? capacityConfiguration.minimum as Integer : 0,
         max: capacityConfiguration.maximum ? capacityConfiguration.maximum as Integer : 0,
         desired: capacityConfiguration.target ? capacityConfiguration.target as Integer : 0
@@ -129,38 +120,13 @@ class SpotServerGroup implements ServerGroup, Serializable {
   }
 
   @Override
-  ServerGroup.ImagesSummary getImagesSummary() {
-    def i = image
-    def bi = buildInfo
-    return new ServerGroup.ImagesSummary() {
-      @Override
-      List<? extends ServerGroup.ImageSummary> getSummaries() {
-        return [new ServerGroup.ImageSummary() {
-          String serverGroupName = name
-          String imageName = i?.name
-          String imageId = i?.imageId
-
-          @Override
-          Map<String, Object> getBuildInfo() {
-            return bi
-          }
-
-          @Override
-          Map<String, Object> getImage() {
-            return i
-          }
-        }]
-      }
-    }
+  ImagesSummary getImagesSummary() {
+    throw new NotImplementedException()
   }
 
   @Override
-  ServerGroup.ImageSummary getImageSummary() {
-    imagesSummary?.summaries?.get(0)
-  }
-
-  static Collection<Instance> filterInstancesByHealthState(Collection<Instance> instances, HealthState healthState) {
-    instances.findAll { Instance it -> it.getHealthState() == healthState }
+  ImageSummary getImageSummary() {
+    throw new NotImplementedException()
   }
 
 }
