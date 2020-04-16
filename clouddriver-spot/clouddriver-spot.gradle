@@ -8,8 +8,10 @@ dependencies {
   annotationProcessor "org.projectlombok:lombok"
   testAnnotationProcessor "org.projectlombok:lombok"
 
-  implementation files('../../../../Development/spotinst-sdk-java/build/libs/spotinst-sdk-java-1.0.18.jar')
-  //implementation "com.spotinst:spotinst-sdk-java:1.0.18"
+  //todo yossi - import only from maven central
+  implementation files('../../../../Development/spotinst-sdk-java/target/spotinst-sdk-java-1.0.21.jar')
+  //implementation "com.spotinst:spotinst-sdk-java:1.0.19"
+  //todo yossi - remove unnecessary modules
   implementation "com.github.ben-manes.caffeine:guava"
   implementation "com.netflix.awsobjectmapper:awsobjectmapper"
   implementation "com.netflix.frigga:frigga"
