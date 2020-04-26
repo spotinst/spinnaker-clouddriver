@@ -18,12 +18,15 @@ package com.netflix.spinnaker.clouddriver.spot.model
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter
 import com.fasterxml.jackson.annotation.JsonAnySetter
+import com.netflix.spinnaker.clouddriver.model.HealthState
 import com.netflix.spinnaker.clouddriver.model.Instance
 import com.netflix.spinnaker.clouddriver.model.ServerGroup
 import com.netflix.spinnaker.clouddriver.spot.SpotCloudProvider
 import com.spotinst.sdkjava.model.ElastigroupCapacityConfiguration
+import com.spotinst.sdkjava.model.ElastigroupComputeConfiguration
+import com.spotinst.sdkjava.model.ElastigroupInstanceHealthiness
 import com.spotinst.sdkjava.model.ElastigroupScalingConfiguration
-import com.spotinst.sdkjava.model.LoadBalancersConfig
+import com.spotinst.sdkjava.model.LoadBalancer
 import groovy.transform.CompileStatic
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
@@ -32,13 +35,10 @@ class SpotServerGroup implements ServerGroup, Serializable {
 
   String name
   String region
-  Set<String> zones
-  Set<Instance> instances
   Set health
   Map<String, Object> launchConfig
   Map<String, Object> elastigroup
-  LoadBalancersConfig previousLoadBalancersConfig
-  ElastigroupScalingConfiguration previousScalingConfiguation
+  List<ElastigroupInstanceHealthiness> elastigroupInstances
   final String type = SpotCloudProvider.ID
   final String cloudProvider = SpotCloudProvider.ID
 
@@ -61,8 +61,48 @@ class SpotServerGroup implements ServerGroup, Serializable {
   }
 
   @Override
+  Set<Instance> getInstances() {
+    Set<Instance> retVal = new HashSet<>()
+    Boolean isLbDefined = getLoadBalancers().size() > 0
+
+    for (ElastigroupInstanceHealthiness ih : elastigroupInstances) {
+      SpotInstance spotInstance = new SpotInstance()
+
+      spotInstance.setName(ih.instanceId)
+
+      if (isLbDefined) {
+        spotInstance.setHealthState(SpotInstance.convertSpotHealthStatusToHealthState(ih.healthStatus))
+      }
+      else {
+        spotInstance.setHealthState(HealthState.OutOfService)
+      }
+      spotInstance.setZone(ih.availabilityZone)
+
+      retVal.add(spotInstance)
+    }
+
+    return retVal
+  }
+
+  @Override
   Boolean isDisabled() {
-    return false
+    def computeConfiguration = this.elastigroup.compute as ElastigroupComputeConfiguration
+    def loadBalancersConfig = computeConfiguration.launchSpecification.loadBalancersConfig
+    def scalingConfig = this.elastigroup.scaling as ElastigroupScalingConfiguration
+
+    return loadBalancersConfig.loadBalancers == null && scalingConfig.up == null && scalingConfig.down == null
+  }
+
+  @Override
+  Set<String> getZones() {
+    Set<String> zones = new HashSet<>()
+    ElastigroupComputeConfiguration computeConfiguration = this.elastigroup.compute as ElastigroupComputeConfiguration
+
+    for (LinkedHashMap map : (computeConfiguration.availabilityZones as List<LinkedHashMap>)) {
+      zones.add(map.get("azName") as String)
+    }
+
+    return zones
   }
 
   @Override
@@ -75,33 +115,54 @@ class SpotServerGroup implements ServerGroup, Serializable {
 
   @Override
   Set<String> getLoadBalancers() {
-    Set<String> loadBalancerNames = []
-    def elastigroup = getElastigroup()
-    if (elastigroup && elastigroup.containsKey("loadBalancerNames")) {
-      loadBalancerNames = (Set<String>) elastigroup.loadBalancerNames
+    List<String> loadBalancerNames = []
+    def computeConfiguration = this.elastigroup.compute as ElastigroupComputeConfiguration
+
+    def loadBalancers = computeConfiguration?.launchSpecification?.loadBalancersConfig?.loadBalancers
+
+    if (loadBalancers != null) {
+      for (LoadBalancer lb : loadBalancers) {
+        loadBalancerNames.add(lb.name)
+      }
     }
 
-    return loadBalancerNames
+    return loadBalancerNames.toSet()
   }
 
   @Override
   Set<String> getSecurityGroups() {
-    Set<String> securityGroups = []
-    if (launchConfig && launchConfig.containsKey("securityGroups")) {
-      securityGroups = (Set<String>) launchConfig.securityGroups
-    }
-    securityGroups
+    def computeConfiguration = this.elastigroup.compute as ElastigroupComputeConfiguration
+    Set<String> securityGroupIds = new HashSet<>(computeConfiguration.launchSpecification.securityGroupIds)
+    return securityGroupIds
   }
 
   @Override
   InstanceCounts getInstanceCounts() {
-    new InstanceCounts(
-      total: 0,
-      up: 0,
-      down: 0,
-      unknown: 0,
-      starting: 0,
-      outOfService: 0)
+    Collection<Instance> instances = getInstances()
+    Boolean isLbDefined = getLoadBalancers().size() > 0
+
+    if (isLbDefined) {
+      return new InstanceCounts(
+        total: instances.size(),
+        up: filterInstancesByHealthState(instances, HealthState.Up)?.size() ?: 0,
+        down: filterInstancesByHealthState(instances, HealthState.Down)?.size() ?: 0,
+        unknown: filterInstancesByHealthState(instances, HealthState.Unknown)?.size() ?: 0,
+        starting: 0,
+        outOfService: filterInstancesByHealthState(instances, HealthState.OutOfService)?.size() ?: 0)
+    } else {
+      return new InstanceCounts(
+        total: instances.size(),
+        up: instances.size(),
+        down: 0,
+        unknown: filterInstancesByHealthState(instances, HealthState.Unknown)?.size() ?: 0,
+        starting: 0,
+        outOfService: instances.size())
+    }
+
+  }
+
+  static Collection<Instance> filterInstancesByHealthState(Collection<Instance> instances, HealthState healthState) {
+    instances.findAll { Instance it -> it.getHealthState() == healthState }
   }
 
   @Override
