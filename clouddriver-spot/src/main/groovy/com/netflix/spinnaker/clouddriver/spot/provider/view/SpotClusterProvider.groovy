@@ -233,13 +233,4 @@ class SpotClusterProvider implements ClusterProvider<SpotCluster>, ServerGroupPr
 
     return clusters
   }
-
-  private String accountFromServerGroups(List<SpotServerGroup> sgs) {
-    String retVal
-
-    for (SpotServerGroup sg : sgs) {
-      Keys.parse(sg.id)
-    }
-    sgs?.iterator()?.next()?.credentials?.name
-  }
 }

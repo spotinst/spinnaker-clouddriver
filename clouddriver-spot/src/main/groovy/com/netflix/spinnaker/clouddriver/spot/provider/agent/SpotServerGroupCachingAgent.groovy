@@ -286,11 +286,20 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
 
     ElastigroupData(Elastigroup elastigroup, String account) {
       this.elastigroup = elastigroup
+
+      if (elastigroup.region == null) {
+        elastigroup.region = getRegionFromAz(elastigroup.compute.availabilityZones.get(0).azName)
+      }
       name = Names.parseName(elastigroup.name)
       appName = Keys.getApplicationKey(name.app)
       cluster = Keys.getClusterKey(name.cluster, name.app, account)
       serverGroup = Keys.getServerGroupKey(elastigroup.name, account, elastigroup.region)
     }
+  }
+
+  static String getRegionFromAz(String az) {
+    String retVal = az.substring(0, az.length() - 1)
+    return retVal
   }
 
   private void cacheApplication(ElastigroupData data, Map<String, CacheData> applications) {

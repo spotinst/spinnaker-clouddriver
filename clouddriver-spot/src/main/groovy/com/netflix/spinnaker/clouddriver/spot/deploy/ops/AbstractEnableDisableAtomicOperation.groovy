@@ -56,10 +56,10 @@ abstract class AbstractEnableDisableAtomicOperation implements AtomicOperation<V
     def loadBalancersConfig
     def scalingPolicyConfig
 
-      def scalingConfigurationBuilder = ElastigroupScalingConfiguration.Builder.get()
-      def computeConfigurationBuilder = ElastigroupComputeConfiguration.Builder.get()
-      def launchSpecConfigurationBuilder = ElastigroupLaunchSpecification.Builder.get()
-      def loadBalancerConfigBuilder = LoadBalancersConfig.Builder.get()
+    def scalingConfigurationBuilder = ElastigroupScalingConfiguration.Builder.get()
+    def computeConfigurationBuilder = ElastigroupComputeConfiguration.Builder.get()
+    def launchSpecConfigurationBuilder = ElastigroupLaunchSpecification.Builder.get()
+    def loadBalancerConfigBuilder = LoadBalancersConfig.Builder.get()
 
     if (disable) {
       task.updateStatus phaseName, "$presentParticipling server group from load balancers and scaling policies..."
@@ -71,21 +71,21 @@ abstract class AbstractEnableDisableAtomicOperation implements AtomicOperation<V
       throw new UnsupportedOperationException("Enable Server Group is not supported yet")
     }
 
-      ElastigroupLaunchSpecification launchSpecification = launchSpecConfigurationBuilder.setLoadBalancersConfig(loadBalancersConfig).build()
-      ElastigroupComputeConfiguration newComputeConfiguration = computeConfigurationBuilder.setLaunchSpecification(launchSpecification).build()
+    ElastigroupLaunchSpecification launchSpecification = launchSpecConfigurationBuilder.setLoadBalancersConfig(loadBalancersConfig).build()
+    ElastigroupComputeConfiguration newComputeConfiguration = computeConfigurationBuilder.setLaunchSpecification(launchSpecification).build()
 
-      def elastigroupBuilder = Elastigroup.Builder.get()
-      def updatedElastigroup = elastigroupBuilder.setScaling(scalingPolicyConfig).setCompute(newComputeConfiguration).build()
-      def updateElastigroupBuilder = ElastigroupUpdateRequest.Builder.get()
-      def updateElastigroupRequest = updateElastigroupBuilder.setElastigroup(updatedElastigroup).build()
+    def elastigroupBuilder = Elastigroup.Builder.get()
+    def updatedElastigroup = elastigroupBuilder.setScaling(scalingPolicyConfig).setCompute(newComputeConfiguration).build()
+    def updateElastigroupBuilder = ElastigroupUpdateRequest.Builder.get()
+    def updateElastigroupRequest = updateElastigroupBuilder.setElastigroup(updatedElastigroup).build()
 
-      try {
-        description.credentials.getElastigroupClient().updateElastigroup(updateElastigroupRequest, elastigroupId)
-        task.updateStatus phaseName, "Successfully updated elastigroup..."
-      }
-      catch (SpotinstHttpException exception) {
-        task.updateStatus phaseName, "Failed to update elastigroup, Error: " + exception.getMessage()
-      }
+    try {
+      description.credentials.getElastigroupClient().updateElastigroup(updateElastigroupRequest, elastigroupId)
+      task.updateStatus phaseName, "Successfully updated elastigroup..."
+    }
+    catch (SpotinstHttpException exception) {
+      task.updateStatus phaseName, "Failed to update elastigroup, Error: " + exception.getMessage()
+    }
 
     task.updateStatus phaseName, "Done ${presentParticipling.toLowerCase()} server group $description.serverGroupName in $description.region."
   }

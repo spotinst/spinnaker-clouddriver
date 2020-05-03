@@ -22,11 +22,7 @@ import com.netflix.spinnaker.clouddriver.model.HealthState
 import com.netflix.spinnaker.clouddriver.model.Instance
 import com.netflix.spinnaker.clouddriver.model.ServerGroup
 import com.netflix.spinnaker.clouddriver.spot.SpotCloudProvider
-import com.spotinst.sdkjava.model.ElastigroupCapacityConfiguration
-import com.spotinst.sdkjava.model.ElastigroupComputeConfiguration
-import com.spotinst.sdkjava.model.ElastigroupInstanceHealthiness
-import com.spotinst.sdkjava.model.ElastigroupScalingConfiguration
-import com.spotinst.sdkjava.model.LoadBalancer
+import com.spotinst.sdkjava.model.*
 import groovy.transform.CompileStatic
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
@@ -72,8 +68,7 @@ class SpotServerGroup implements ServerGroup, Serializable {
 
       if (isLbDefined) {
         spotInstance.setHealthState(SpotInstance.convertSpotHealthStatusToHealthState(ih.healthStatus))
-      }
-      else {
+      } else {
         spotInstance.setHealthState(HealthState.OutOfService)
       }
       spotInstance.setZone(ih.availabilityZone)
@@ -90,7 +85,10 @@ class SpotServerGroup implements ServerGroup, Serializable {
     def loadBalancersConfig = computeConfiguration.launchSpecification.loadBalancersConfig
     def scalingConfig = this.elastigroup.scaling as ElastigroupScalingConfiguration
 
-    return loadBalancersConfig.loadBalancers == null && scalingConfig.up == null && scalingConfig.down == null
+    Boolean noLoadBalancers = loadBalancersConfig == null || loadBalancersConfig.loadBalancers == null
+    Boolean noScaling = scalingConfig == null || (scalingConfig.up == null && scalingConfig.down == null)
+
+    return noLoadBalancers && noScaling
   }
 
   @Override
