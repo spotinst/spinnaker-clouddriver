@@ -45,7 +45,7 @@ import static com.netflix.spinnaker.clouddriver.core.provider.agent.Namespace.*
  * A caching agent for Spot server groups.
  *
  * The groups are collected cloud-side by the SpotinstElastigroupClient. In this agent we just read
- * all server groups that we can see given our credentials.
+ * all server groups that are available using our credentials.
  *
  * This may be a slow operation due to the large number of API calls that the service makes.
  *

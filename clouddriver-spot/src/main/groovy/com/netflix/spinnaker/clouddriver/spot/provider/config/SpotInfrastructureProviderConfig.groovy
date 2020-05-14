@@ -73,34 +73,8 @@ class SpotInfrastructureProviderConfig {
       if (!scheduledAccounts.contains(credentials.name)) {
         def newlyAddedAgents = []
 
-        //todo yossi - implement
-//        newlyAddedAgents << new SpotSecurityGroupCachingAgent(clouddriverUserAgentApplicationName,
-//          credentials,
-//          objectMapper,
-//          registry)
-
-//        newlyAddedAgents << new SpotInstanceCachingAgent(clouddriverUserAgentApplicationName,
-//          credentials,
-//          objectMapper)
-
-//        newlyAddedAgents << new SpotNetworkCachingAgent(clouddriverUserAgentApplicationName,
-//          credentials,
-//          objectMapper)
-
-//        newlyAddedAgents << new SpotSubnetCachingAgent(clouddriverUserAgentApplicationName,
-//          credentials,
-//          objectMapper)
-
         newlyAddedAgents << new SpotServerGroupCachingAgent(credentials,
           objectMapper, registry)
-
-//        newlyAddedAgents << new SpotImageCachingAgent(clouddriverUserAgentApplicationName,
-//          credentials,
-//          objectMapper)
-
-//        newlyAddedAgents << new SpotLoadBalancerCachingAgent(clouddriverUserAgentApplicationName,
-//          credentials,
-//          objectMapper)
 
         // If there is an agent scheduler, then this provider has been through the AgentController in the past.
         // In that case, we need to do the scheduling here (because accounts have been added to a running system).
