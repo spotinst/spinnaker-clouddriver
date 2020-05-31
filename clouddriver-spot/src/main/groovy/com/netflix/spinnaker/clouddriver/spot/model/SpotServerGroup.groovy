@@ -22,6 +22,7 @@ import com.netflix.spinnaker.clouddriver.model.HealthState
 import com.netflix.spinnaker.clouddriver.model.Instance
 import com.netflix.spinnaker.clouddriver.model.ServerGroup
 import com.netflix.spinnaker.clouddriver.spot.SpotCloudProvider
+import com.spotinst.sdkjava.enums.ProcessNameEnum
 import com.spotinst.sdkjava.model.*
 import groovy.transform.CompileStatic
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
@@ -35,6 +36,7 @@ class SpotServerGroup implements ServerGroup, Serializable {
   Map<String, Object> launchConfig
   Map<String, Object> elastigroup
   List<ElastigroupInstanceHealthiness> elastigroupInstances
+  List<ProcessSuspensionResult> suspendedProcesses
   final String type = SpotCloudProvider.ID
   final String cloudProvider = SpotCloudProvider.ID
 
@@ -81,14 +83,24 @@ class SpotServerGroup implements ServerGroup, Serializable {
 
   @Override
   Boolean isDisabled() {
-    def computeConfiguration = this.elastigroup.compute as ElastigroupComputeConfiguration
-    def loadBalancersConfig = computeConfiguration.launchSpecification.loadBalancersConfig
-    def scalingConfig = this.elastigroup.scaling as ElastigroupScalingConfiguration
+    Boolean isLbRegistrationDisabled = false
+    Boolean isAutoScaleDisabled = false
 
-    Boolean noLoadBalancers = loadBalancersConfig == null || loadBalancersConfig.loadBalancers == null
-    Boolean noScaling = scalingConfig == null || (scalingConfig.up == null && scalingConfig.down == null)
+    if (suspendedProcesses) {
+      for (ProcessSuspensionResult process : suspendedProcesses) {
+        def name = process.name
 
-    return noLoadBalancers && noScaling
+        if (name == ProcessNameEnum.LB_REGISTRATION) {
+          isLbRegistrationDisabled = true
+        }
+
+        if (name == ProcessNameEnum.AUTO_SCALE) {
+          isAutoScaleDisabled = true
+        }
+      }
+    }
+
+    return isLbRegistrationDisabled && isAutoScaleDisabled
   }
 
   @Override

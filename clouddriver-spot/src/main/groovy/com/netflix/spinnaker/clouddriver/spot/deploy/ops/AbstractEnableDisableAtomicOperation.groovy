@@ -21,8 +21,11 @@ import com.netflix.spinnaker.clouddriver.data.task.TaskRepository
 import com.netflix.spinnaker.clouddriver.orchestration.AtomicOperation
 import com.netflix.spinnaker.clouddriver.spot.deploy.description.EnableDisableSpotServerGroupDescription
 import com.netflix.spinnaker.clouddriver.spot.provider.view.SpotClusterProvider
-import com.spotinst.sdkjava.exception.SpotinstHttpException
-import com.spotinst.sdkjava.model.*
+import com.spotinst.sdkjava.enums.ProcessNameEnum
+import com.spotinst.sdkjava.model.ElastigroupRemoveSuspensionsRequest
+import com.spotinst.sdkjava.model.ElastigroupStandbyRequest
+import com.spotinst.sdkjava.model.ElastigroupSuspendProcessesRequest
+import com.spotinst.sdkjava.model.ProcessSuspension
 import org.springframework.beans.factory.annotation.Autowired
 
 abstract class AbstractEnableDisableAtomicOperation implements AtomicOperation<Void> {
@@ -47,47 +50,41 @@ abstract class AbstractEnableDisableAtomicOperation implements AtomicOperation<V
   @Override
   Void operate(List priorOutputs) {
     String presentParticipling = disable ? 'Disabling' : 'Enabling'
-
     task.updateStatus phaseName, "$presentParticipling server group $description.serverGroupName in $description.region..."
-
     def serverGroup = spotClusterProvider.getServerGroup(description.account, description.region, description.serverGroupName)
     String elastigroupId = serverGroup.elastigroup.id
-
-    def loadBalancersConfig
-    def scalingPolicyConfig
-
-    def scalingConfigurationBuilder = ElastigroupScalingConfiguration.Builder.get()
-    def computeConfigurationBuilder = ElastigroupComputeConfiguration.Builder.get()
-    def launchSpecConfigurationBuilder = ElastigroupLaunchSpecification.Builder.get()
-    def loadBalancerConfigBuilder = LoadBalancersConfig.Builder.get()
+    ElastigroupStandbyRequest.Builder elastigroupStandbyRequestBuilder = ElastigroupStandbyRequest.Builder.get()
+    ElastigroupStandbyRequest standbyRequest = elastigroupStandbyRequestBuilder.setElastigroupId(elastigroupId).build()
 
     if (disable) {
-      task.updateStatus phaseName, "$presentParticipling server group from load balancers and scaling policies..."
-
-      loadBalancersConfig = loadBalancerConfigBuilder.setLoadBalancers(null).build()
-      scalingPolicyConfig = scalingConfigurationBuilder.setDown(null).setUp(null).build()
-
+      description.credentials.getElastigroupClient().enterGroupStandby(standbyRequest)
+      suspendAutoScaling(elastigroupId)
     } else {
-      throw new UnsupportedOperationException("Enable Server Group is not supported yet")
-    }
-
-    ElastigroupLaunchSpecification launchSpecification = launchSpecConfigurationBuilder.setLoadBalancersConfig(loadBalancersConfig).build()
-    ElastigroupComputeConfiguration newComputeConfiguration = computeConfigurationBuilder.setLaunchSpecification(launchSpecification).build()
-
-    def elastigroupBuilder = Elastigroup.Builder.get()
-    def updatedElastigroup = elastigroupBuilder.setScaling(scalingPolicyConfig).setCompute(newComputeConfiguration).build()
-    def updateElastigroupBuilder = ElastigroupUpdateRequest.Builder.get()
-    def updateElastigroupRequest = updateElastigroupBuilder.setElastigroup(updatedElastigroup).build()
-
-    try {
-      description.credentials.getElastigroupClient().updateElastigroup(updateElastigroupRequest, elastigroupId)
-      task.updateStatus phaseName, "Successfully updated elastigroup..."
-    }
-    catch (SpotinstHttpException exception) {
-      task.updateStatus phaseName, "Failed to update elastigroup, Error: " + exception.getMessage()
+      description.credentials.getElastigroupClient().exitGroupStandby(standbyRequest)
+      removeAutoScalingSuspension(elastigroupId)
     }
 
     task.updateStatus phaseName, "Done ${presentParticipling.toLowerCase()} server group $description.serverGroupName in $description.region."
+  }
+
+  private void suspendAutoScaling(String elastigroupId) {
+    task.updateStatus phaseName, "Suspending auto scaling activities"
+    ElastigroupSuspendProcessesRequest.Builder requestBuilder = ElastigroupSuspendProcessesRequest.Builder.get()
+    ProcessSuspension.Builder suspensionBuilder = ProcessSuspension.Builder.get()
+    ProcessSuspension suspension = suspensionBuilder.setName(ProcessNameEnum.AUTO_SCALE).setTtlInMinutes(null).build()
+    List<ProcessSuspension> suspensions = Collections.singletonList(suspension)
+    ElastigroupSuspendProcessesRequest request =
+      requestBuilder.setElastigroupId(elastigroupId).setSuspensions(suspensions).build()
+    description.credentials.getElastigroupClient().suspendProcess(request)
+  }
+
+  private void removeAutoScalingSuspension(String elastigroupId) {
+    task.updateStatus phaseName, "Removing suspensions of auto scaling activities"
+    ElastigroupRemoveSuspensionsRequest.Builder requestBuilder = ElastigroupRemoveSuspensionsRequest.Builder.get()
+    List<ProcessNameEnum> toRemove = Collections.singletonList(ProcessNameEnum.AUTO_SCALE)
+    ElastigroupRemoveSuspensionsRequest request =
+      requestBuilder.setElastigroupId(elastigroupId).setProcesses(toRemove).build()
+    description.credentials.getElastigroupClient().removeSuspensions(request)
   }
 
   Task getTask() {

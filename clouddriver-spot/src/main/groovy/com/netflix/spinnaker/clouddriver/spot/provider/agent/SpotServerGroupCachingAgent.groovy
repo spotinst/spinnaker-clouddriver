@@ -34,7 +34,9 @@ import com.netflix.spinnaker.clouddriver.spot.security.SpotAccountCredentials
 import com.spotinst.sdkjava.model.Elastigroup
 import com.spotinst.sdkjava.model.ElastigroupGetAllRequest
 import com.spotinst.sdkjava.model.ElastigroupGetInstanceHealthinessRequest
+import com.spotinst.sdkjava.model.ElastigroupGetSuspensionsRequest
 import com.spotinst.sdkjava.model.ElastigroupInstanceHealthiness
+import com.spotinst.sdkjava.model.SuspendedProcesses
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -321,6 +323,7 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
 
   private void cacheServerGroup(ElastigroupData data, Map<String, CacheData> serverGroups) {
     def instances = getElastigroupInstances(data)
+    def suspensions = getElastigroupSuspensions(data)
 
     serverGroups[data.serverGroup].with {
       attributes.application = data.name.app
@@ -329,14 +332,26 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
       attributes.name = data.elastigroup.name
       attributes.cluster = data.name.cluster
       attributes.elastigroupInstances = instances
+      attributes.suspendedProcesses = suspensions.suspensions
 
       relationships[APPLICATIONS.ns].add(data.appName)
       relationships[CLUSTERS.ns].add(data.cluster)
     }
   }
 
+  private SuspendedProcesses getElastigroupSuspensions(ElastigroupData data) {
+    def elastigroupClient = this.account.elastigroupClient
+
+    ElastigroupGetSuspensionsRequest.Builder requestBuilder = ElastigroupGetSuspensionsRequest.Builder.get()
+    ElastigroupGetSuspensionsRequest request = requestBuilder.setElastigroupId(data.elastigroup.id).build()
+    SuspendedProcesses retVal = elastigroupClient.getSuspendedProcesses(request)
+
+    return retVal
+  }
+
   private List<ElastigroupInstanceHealthiness> getElastigroupInstances(ElastigroupData data) {
     def elastigroupClient = this.account.elastigroupClient
+
     ElastigroupGetInstanceHealthinessRequest.Builder healthinessRequestBuilder = ElastigroupGetInstanceHealthinessRequest.Builder.get()
     ElastigroupGetInstanceHealthinessRequest healthinessRequest = healthinessRequestBuilder.setElastigroupId(data.elastigroup.id).build()
     List<ElastigroupInstanceHealthiness> instanceHealthinesses = elastigroupClient.getInstanceHealthiness(healthinessRequest)
