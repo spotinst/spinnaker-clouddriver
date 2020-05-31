@@ -28,6 +28,8 @@ import groovy.transform.Canonical
 class BasicCloneElastigroupDescription extends AbstractSpotCredentialsDescription implements DeployDescription, ApplicationNameable {
   String application
   String imageId
+  String stack
+  String freeFormDetails
   Collection<OperationEvent> events = []
   Source source = new Source()
 

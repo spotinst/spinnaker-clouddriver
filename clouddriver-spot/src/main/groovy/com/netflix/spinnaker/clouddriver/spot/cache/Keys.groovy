@@ -23,7 +23,6 @@ import groovy.util.logging.Slf4j
 class Keys {
 
   static enum Namespace {
-    //todo yossi - remove unnecessary
     APPLICATIONS,
     SERVER_GROUPS,
     CLUSTERS,

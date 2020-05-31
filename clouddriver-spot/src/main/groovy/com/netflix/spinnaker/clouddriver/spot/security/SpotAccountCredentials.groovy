@@ -18,6 +18,9 @@ package com.netflix.spinnaker.clouddriver.spot.security
 
 import com.netflix.spinnaker.clouddriver.security.AccountCredentials
 import com.netflix.spinnaker.clouddriver.spot.SpotCloudProvider
+import com.spotinst.sdkjava.SpotinstClient
+import com.spotinst.sdkjava.client.http.AgentTypeEnum
+import com.spotinst.sdkjava.client.http.UserAgentConfig
 import com.spotinst.sdkjava.model.SpotinstElastigroupClient
 
 class SpotAccountCredentials implements AccountCredentials<Object> {
@@ -31,7 +34,8 @@ class SpotAccountCredentials implements AccountCredentials<Object> {
   SpotAccountCredentials(String name, String accountId, String apiToken) {
     this.name = name
     this.accountId = accountId
-    this.elastigroupClient = new SpotinstElastigroupClient(apiToken, accountId)
+    List<UserAgentConfig> userAgentConfigurations = Collections.singletonList(new UserAgentConfig(AgentTypeEnum.SPINNAKER, SpotCloudProvider.VERSION))
+    this.elastigroupClient = SpotinstClient.getElastigroupClient(apiToken, accountId, userAgentConfigurations)
   }
 
   @Override

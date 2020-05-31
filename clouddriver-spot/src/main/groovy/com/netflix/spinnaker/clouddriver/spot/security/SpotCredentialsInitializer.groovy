@@ -30,7 +30,7 @@ class SpotCredentialsInitializer {
 
   @Bean
   List<? extends SpotAccountCredentials> spotAccountCredentials(
-    String clouddriverUserAgentApplicationName, //todo yossi see CloudDriverConfig.clouddriverUserAgentApplicationName
+    String clouddriverUserAgentApplicationName, //see CloudDriverConfig.clouddriverUserAgentApplicationName
     SpotConfigurationProperties spotConfigurationProperties,
     AccountCredentialsRepository accountCredentialsRepository
   ) {

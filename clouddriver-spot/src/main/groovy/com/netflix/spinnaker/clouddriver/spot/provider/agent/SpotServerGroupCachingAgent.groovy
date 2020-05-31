@@ -23,6 +23,7 @@ import com.netflix.frigga.Names
 import com.netflix.spectator.api.Registry
 import com.netflix.spinnaker.cats.agent.*
 import com.netflix.spinnaker.cats.cache.CacheData
+import com.netflix.spinnaker.cats.cache.DefaultCacheData
 import com.netflix.spinnaker.cats.provider.ProviderCache
 import com.netflix.spinnaker.clouddriver.cache.OnDemandAgent
 import com.netflix.spinnaker.clouddriver.cache.OnDemandMetricsSupport
@@ -32,10 +33,12 @@ import com.netflix.spinnaker.clouddriver.spot.provider.view.MutableCacheData
 import com.netflix.spinnaker.clouddriver.spot.security.SpotAccountCredentials
 import com.spotinst.sdkjava.model.Elastigroup
 import com.spotinst.sdkjava.model.ElastigroupGetAllRequest
+import com.spotinst.sdkjava.model.ElastigroupGetInstanceHealthinessRequest
+import com.spotinst.sdkjava.model.ElastigroupGetSuspensionsRequest
+import com.spotinst.sdkjava.model.ElastigroupInstanceHealthiness
+import com.spotinst.sdkjava.model.SuspendedProcesses
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-
-import java.util.stream.Collectors
 
 import static com.netflix.spinnaker.cats.agent.AgentDataType.Authority.AUTHORITATIVE
 import static com.netflix.spinnaker.clouddriver.core.provider.agent.Namespace.*
@@ -44,7 +47,7 @@ import static com.netflix.spinnaker.clouddriver.core.provider.agent.Namespace.*
  * A caching agent for Spot server groups.
  *
  * The groups are collected cloud-side by the SpotinstElastigroupClient. In this agent we just read
- * all server groups that we can see given our credentials.
+ * all server groups that are available using our credentials.
  *
  * This may be a slow operation due to the large number of API calls that the service makes.
  *
@@ -107,7 +110,6 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
 
   @Override
   CacheResult loadData(ProviderCache providerCache) {
-    //todo yossi - here AWS load groups to their caching agent
     log.debug("Describing items in ${agentType}")
 
     Long start = System.currentTimeMillis()
@@ -117,7 +119,9 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
     def evictableOnDemandCacheDatas = []
     def usableOnDemandCacheDatas = []
 
-    def serverGroupKeys = elastigroups.collect { Keys.getServerGroupKey(it.name, accountName, it.region) } as Set<String>
+    def serverGroupKeys = elastigroups.collect {
+      Keys.getServerGroupKey(it.name, accountName, it.region)
+    } as Set<String>
     def pendingOnDemandRequestKeys = providerCache
       .filterIdentifiers(ON_DEMAND.ns, Keys.getServerGroupKey("*", accountName, "*"))
       .findAll { serverGroupKeys.contains(it) }
@@ -151,7 +155,7 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
   @Override
   Optional<Map<String, String>> getCacheKeyPatterns() {
     return [
-      (SERVER_GROUPS.ns): Keys.getServerGroupKey("*",accountName,"*")
+      (SERVER_GROUPS.ns): Keys.getServerGroupKey("*", accountName, "*")
     ]
   }
 
@@ -162,7 +166,65 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
 
   @Override
   OnDemandAgent.OnDemandResult handle(ProviderCache providerCache, Map<String, ? extends Object> data) {
-    throw new NotImplementedException();
+    if (!data.containsKey("serverGroupName")) {
+      return null
+    }
+    if (!data.containsKey("account")) {
+      return null
+    }
+    if (!data.containsKey("region")) {
+      return null
+    }
+
+    if (account.name != data.account) {
+      return null
+    }
+
+    if (region != data.region) {
+      return null
+    }
+
+    String serverGroupName = data.serverGroupName.toString()
+    def elastigroupClient = this.account.elastigroupClient
+    ElastigroupGetAllRequest getAllElastigroupsRequest = ElastigroupGetAllRequest.Builder.get().setName(serverGroupName).build()
+    List<Elastigroup> elastigroups = elastigroupClient.getAllElastigroups(getAllElastigroupsRequest)
+
+    CacheResult result = buildCacheResults(elastigroups)
+
+    def jsonResult = objectMapper.writeValueAsString(result.cacheResults)
+    def serverGroupKey = Keys.getServerGroupKey(accountName, serverGroupName, region)
+    if (result.cacheResults.values().flatten().isEmpty()) {
+      providerCache.evictDeletedItems(
+        ON_DEMAND.ns,
+        [serverGroupKey]
+      )
+    } else {
+      metricsSupport.onDemandStore {
+        def cacheData = new DefaultCacheData(
+          serverGroupKey,
+          10 * 60, // ttl is 10 minutes.
+          [
+            cacheTime     : System.currentTimeMillis(),
+            cacheResults  : jsonResult,
+            processedCount: 0,
+            processedTime : null
+          ],
+          [:]
+        )
+
+        providerCache.putCacheData(ON_DEMAND.ns, cacheData)
+      }
+    }
+
+    Map<String, Collection<String>> evictions = newestElastigroup ? [:] : [(SERVER_GROUPS.ns): [serverGroupKey]]
+
+    log.info "On demand cache refresh (data: ${data}) succeeded."
+
+    return new OnDemandAgent.OnDemandResult(
+      sourceAgentType: getOnDemandAgentType(),
+      cacheResult: result,
+      evictions: evictions
+    )
   }
 
   @Override
@@ -172,9 +234,8 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
 
 
   private List<Elastigroup> loadElastigroups() {
-    //todo yossi - change to multiple esgs
     log.debug("Describing Elastigroups in ${agentType}")
-    def elastigroupClient  = this.account.elastigroupClient
+    def elastigroupClient = this.account.elastigroupClient
 
     ElastigroupGetAllRequest getAllElastigroupsRequest = ElastigroupGetAllRequest.Builder.get().build()
     def elastigroups = elastigroupClient.getAllElastigroups(getAllElastigroupsRequest)
@@ -214,29 +275,6 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
     return result
   }
 
-
-  private Map<String, Object> getApplicationAttributes(String appName) {
-    Map<String, Object> attributes = [:]
-
-    attributes.name = appName
-
-    return attributes
-  }
-
-  private Map<String, Object> getSpotServerGroupAttributes(Elastigroup elastigroup) {
-    Map<String, Object> attributes = [:]
-
-    attributes.application = Names.parseName(elastigroup.name).app
-    attributes.accountName = accountName
-    attributes.elastigroup = objectMapper.convertValue(elastigroup, ATTRIBUTES)
-    attributes.region = elastigroup.region
-    attributes.name = elastigroup.name
-    Set<String> availabilityZones = elastigroup.getCompute().getAvailabilityZones().stream().map({ placement -> placement.getAzName() }).collect(Collectors.toSet());
-    attributes.zones = availabilityZones
-
-    return attributes
-  }
-
   private Map<String, CacheData> cache() {
     [:].withDefault { String id -> new MutableCacheData(id) }
   }
@@ -250,11 +288,20 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
 
     ElastigroupData(Elastigroup elastigroup, String account) {
       this.elastigroup = elastigroup
+
+      if (elastigroup.region == null) {
+        elastigroup.region = getRegionFromAz(elastigroup.compute.availabilityZones.get(0).azName)
+      }
       name = Names.parseName(elastigroup.name)
       appName = Keys.getApplicationKey(name.app)
       cluster = Keys.getClusterKey(name.cluster, name.app, account)
       serverGroup = Keys.getServerGroupKey(elastigroup.name, account, elastigroup.region)
     }
+  }
+
+  static String getRegionFromAz(String az) {
+    String retVal = az.substring(0, az.length() - 1)
+    return retVal
   }
 
   private void cacheApplication(ElastigroupData data, Map<String, CacheData> applications) {
@@ -275,19 +322,40 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
   }
 
   private void cacheServerGroup(ElastigroupData data, Map<String, CacheData> serverGroups) {
+    def instances = getElastigroupInstances(data)
+    def suspensions = getElastigroupSuspensions(data)
+
     serverGroups[data.serverGroup].with {
       attributes.application = data.name.app
       attributes.elastigroup = objectMapper.convertValue(data.elastigroup, ATTRIBUTES)
       attributes.region = data.elastigroup.region
       attributes.name = data.elastigroup.name
       attributes.cluster = data.name.cluster
-      Set<String> availabilityZones = data.elastigroup.getCompute().getAvailabilityZones().stream().map({ placement -> placement.getAzName() }).collect(Collectors.toSet());
-      attributes.zones = availabilityZones
-      attributes.launchConfig = data.elastigroup.compute.launchSpecification
-      attributes.instanceType = data.elastigroup.compute.instanceTypes.onDemand
+      attributes.elastigroupInstances = instances
+      attributes.suspendedProcesses = suspensions.suspensions
 
       relationships[APPLICATIONS.ns].add(data.appName)
       relationships[CLUSTERS.ns].add(data.cluster)
     }
+  }
+
+  private SuspendedProcesses getElastigroupSuspensions(ElastigroupData data) {
+    def elastigroupClient = this.account.elastigroupClient
+
+    ElastigroupGetSuspensionsRequest.Builder requestBuilder = ElastigroupGetSuspensionsRequest.Builder.get()
+    ElastigroupGetSuspensionsRequest request = requestBuilder.setElastigroupId(data.elastigroup.id).build()
+    SuspendedProcesses retVal = elastigroupClient.getSuspendedProcesses(request)
+
+    return retVal
+  }
+
+  private List<ElastigroupInstanceHealthiness> getElastigroupInstances(ElastigroupData data) {
+    def elastigroupClient = this.account.elastigroupClient
+
+    ElastigroupGetInstanceHealthinessRequest.Builder healthinessRequestBuilder = ElastigroupGetInstanceHealthinessRequest.Builder.get()
+    ElastigroupGetInstanceHealthinessRequest healthinessRequest = healthinessRequestBuilder.setElastigroupId(data.elastigroup.id).build()
+    List<ElastigroupInstanceHealthiness> instanceHealthinesses = elastigroupClient.getInstanceHealthiness(healthinessRequest)
+
+    return instanceHealthinesses
   }
 }

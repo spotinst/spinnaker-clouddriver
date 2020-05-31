@@ -20,16 +20,16 @@ import com.netflix.spinnaker.clouddriver.orchestration.AtomicOperations
 import com.netflix.spinnaker.clouddriver.security.AbstractAtomicOperationsCredentialsSupport
 import com.netflix.spinnaker.clouddriver.spot.SpotOperation
 import com.netflix.spinnaker.clouddriver.spot.deploy.description.EnableDisableSpotServerGroupDescription
-import com.netflix.spinnaker.clouddriver.spot.deploy.ops.DisableSpotServerGroupAtomicOperation
+import com.netflix.spinnaker.clouddriver.spot.deploy.ops.EnableSpotServerGroupAtomicOperation
 import org.springframework.stereotype.Component
 
-@SpotOperation(AtomicOperations.DISABLE_SERVER_GROUP)
-@Component("disableSpotServerGroupDescription")
-class DisableSpotServerGroupAtomicOperationConverter extends AbstractAtomicOperationsCredentialsSupport {
+@SpotOperation(AtomicOperations.ENABLE_SERVER_GROUP)
+@Component("enableSpotServerGroupDescription")
+class EnableSpotServerGroupAtomicOperationConverter extends AbstractAtomicOperationsCredentialsSupport {
 
   @Override
   AtomicOperation convertOperation(Map input) {
-    new DisableSpotServerGroupAtomicOperation(convertDescription(input))
+    new EnableSpotServerGroupAtomicOperation(convertDescription(input))
   }
 
   @Override
