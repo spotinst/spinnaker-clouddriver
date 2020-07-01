@@ -215,6 +215,8 @@ class SpotClusterProvider implements ClusterProvider<SpotCluster>, ServerGroupPr
 
     def cacheResults = cacheView.getAllByApplication(toFetch, application, [:])
 
+    cacheResults[SERVER_GROUPS.ns] = cacheResults[SERVER_GROUPS.ns].findAll {it.id.startsWith(getCloudProviderId())}
+    cacheResults[CLUSTERS.ns] = cacheResults[CLUSTERS.ns].findAll {it.id.startsWith(getCloudProviderId())}
 
     Map<String, SpotServerGroup> serverGroups = translateServerGroups(
       cacheResults[SERVER_GROUPS.ns]

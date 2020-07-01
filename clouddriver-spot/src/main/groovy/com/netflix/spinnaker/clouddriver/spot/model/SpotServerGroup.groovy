@@ -45,6 +45,12 @@ class SpotServerGroup implements ServerGroup, Serializable {
 
   @Override
   String getRegion() {
+    if (region == null) {
+      ElastigroupComputeConfiguration computeConfiguration = this.elastigroup.compute as ElastigroupComputeConfiguration
+      String az = computeConfiguration.availabilityZones.get(0)["azName"]
+      region = az.substring(0, az.length() - 1)
+    }
+
     return region
   }
 

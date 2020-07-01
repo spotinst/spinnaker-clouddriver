@@ -60,6 +60,12 @@ class CloneElastigroupAtomicOperation implements AtomicOperation<DeploymentResul
 
     def clonedElastigroup = cloneElastigroup(elastigroupIdToClone, newName, newImageId)
     DeploymentResult result = new DeploymentResult()
+
+    if (clonedElastigroup.region == null) {
+      ElastigroupComputeConfiguration computeConfiguration = clonedElastigroup.compute as ElastigroupComputeConfiguration
+      String az = computeConfiguration.availabilityZones.get(0)["azName"]
+      clonedElastigroup.region = az.substring(0, az.length() - 1)
+    }
     result.serverGroupNames.add(clonedElastigroup.region + ":" + clonedElastigroup.name)
     result.serverGroupNameByRegion.put(clonedElastigroup.region, clonedElastigroup.name)
 
