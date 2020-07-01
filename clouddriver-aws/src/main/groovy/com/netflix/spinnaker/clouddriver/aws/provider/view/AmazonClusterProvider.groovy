@@ -160,6 +160,11 @@ class AmazonClusterProvider implements ClusterProvider<AmazonCluster>, ServerGro
     filters[INSTANCES.ns] = RelationshipCacheFilter.include(SERVER_GROUPS.ns, HEALTH.ns)
 
     def cacheResults = cacheView.getAllByApplication(toFetch, application, filters)
+    cacheResults[SERVER_GROUPS.ns] = cacheResults[SERVER_GROUPS.ns].findAll {it.id.startsWith(getCloudProviderId())}
+    cacheResults[HEALTH.ns]= cacheResults[HEALTH.ns].findAll {it.id.startsWith(getCloudProviderId())}
+    cacheResults[LAUNCH_CONFIGS.ns]= cacheResults[LAUNCH_CONFIGS.ns].findAll {it.id.startsWith(getCloudProviderId())}
+    cacheResults[INSTANCES.ns]= cacheResults[INSTANCES.ns].findAll {it.id.startsWith(getCloudProviderId())}
+    cacheResults[CLUSTERS.ns]= cacheResults[CLUSTERS.ns].findAll {it.id.startsWith(getCloudProviderId())}
 
     // lbs and images can span applications and can't currently be indexed by app
     Collection<CacheData> allLoadBalancers = resolveRelationshipDataForCollection(
