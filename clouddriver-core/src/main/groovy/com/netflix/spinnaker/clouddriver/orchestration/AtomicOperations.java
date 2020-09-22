@@ -109,4 +109,7 @@ public final class AtomicOperations {
   public static final String DEPLOY_CLOUDFORMATION_STACK = "deployCloudFormation";
   public static final String DELETE_CLOUDFORMATION_CHANGESET = "deleteCloudFormationChangeSet";
   public static final String EXECUTE_CLOUDFORMATION_CHANGESET = "executeCloudFormationChangeSet";
+
+  // Spot oprtations
+  public static final String DEPLOY_ELASTIGROUP = "deployElastigroup";
 }
