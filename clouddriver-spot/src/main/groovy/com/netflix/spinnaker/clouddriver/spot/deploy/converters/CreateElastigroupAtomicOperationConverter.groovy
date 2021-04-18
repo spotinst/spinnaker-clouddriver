@@ -22,10 +22,11 @@ import com.netflix.spinnaker.clouddriver.security.AbstractAtomicOperationsCreden
 import com.netflix.spinnaker.clouddriver.spot.SpotOperation
 import com.netflix.spinnaker.clouddriver.spot.deploy.description.CreateElastigroupDescription
 import com.netflix.spinnaker.clouddriver.spot.deploy.ops.CreateElastigroupAtomicOperation
-import org.springframework.stereotype.Component
 
-@Component("deployElastigroup")
+import groovy.json.JsonSlurper
+import org.springframework.stereotype.Component
 @SpotOperation(AtomicOperations.DEPLOY_ELASTIGROUP)
+@Component("deployElastigroup")
 class CreateElastigroupAtomicOperationConverter extends AbstractAtomicOperationsCredentialsSupport {
   @Override
   AtomicOperation convertOperation(Map input) {
@@ -36,6 +37,9 @@ class CreateElastigroupAtomicOperationConverter extends AbstractAtomicOperations
   CreateElastigroupDescription convertDescription(Map input) {
     def converted = objectMapper.convertValue(input, CreateElastigroupDescription)
     converted.credentials = getCredentialsObject(input.credentials as String)
+    def jsonSlurper = new JsonSlurper()
+    def elastigroupMap = jsonSlurper.parseText(input.payload)
+    converted.elastigroup = elastigroupMap["group"]
     converted
   }
 }
