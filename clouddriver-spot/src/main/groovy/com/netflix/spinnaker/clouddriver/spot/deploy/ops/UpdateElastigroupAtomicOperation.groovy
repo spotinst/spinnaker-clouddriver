@@ -27,6 +27,7 @@ import com.netflix.spinnaker.clouddriver.spot.converters.sdk.ElastigroupUpdateRe
 import com.netflix.spinnaker.clouddriver.spot.deploy.description.UpdateElastigroupDescription
 import com.spotinst.sdkjava.model.Elastigroup
 import com.spotinst.sdkjava.model.ElastigroupComputeConfiguration
+import com.sun.org.apache.xpath.internal.operations.Bool
 
 class UpdateElastigroupAtomicOperation implements AtomicOperation<Void> {
   private static final String PHASE = "UPDATE"
@@ -45,13 +46,13 @@ class UpdateElastigroupAtomicOperation implements AtomicOperation<Void> {
   Void operate(List priorOutputs) {
     task.updateStatus PHASE, "Initializing Update ELASTIGROUP operation for ${description.elastigroup.name}..."
 
-    def elastigroup = updateElastigroup(description.elastigroup, description.elastigroupId)
+    updateElastigroup(description.elastigroup, description.elastigroupId)
 
     task.updateStatus PHASE, "Finished Update ELASTIGROUP operation for ${description.elastigroup.name}."
     null
   }
 
-  private Elastigroup updateElastigroup(Map<String, Object> elastigroupToUpdate, String elastigroupId) {
+  private void updateElastigroup(Map<String, Object> elastigroupToUpdate, String elastigroupId) {
     task.updateStatus PHASE, "Preparing Update ELASTIGROUP request..."
 
     def sdkUpdateGroupRequest = ElastigroupUpdateRequestConverter.toUpdateRequest(elastigroupToUpdate)
@@ -60,13 +61,11 @@ class UpdateElastigroupAtomicOperation implements AtomicOperation<Void> {
 
     def updatedGroup = description.credentials.elastigroupClient.updateElastigroup(sdkUpdateGroupRequest, elastigroupId)
 
-    if (updatedGroup != null) {
-      task.updateStatus PHASE, "Successfully Updated ELASTIGROUP ${createdGroup.name}."
+    if (updatedGroup != null && updatedGroup) {
+      task.updateStatus PHASE, "Successfully Updated ELASTIGROUP ${elastigroupId}."
     }
     else {
-      task.updateStatus PHASE, "Failed to Update ELASTIGROUP ${description.elastigroup.name}"
+      task.updateStatus PHASE, "Failed to Update ELASTIGROUP ${elastigroupId}"
     }
-
-    updatedGroup
   }
 }
