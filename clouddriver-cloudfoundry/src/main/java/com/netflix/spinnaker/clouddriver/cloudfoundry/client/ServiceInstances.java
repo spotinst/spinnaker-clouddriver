@@ -23,6 +23,7 @@ import static com.netflix.spinnaker.clouddriver.cloudfoundry.client.model.v2.Las
 import static com.netflix.spinnaker.clouddriver.cloudfoundry.client.model.v2.LastOperation.Type.*;
 import static com.netflix.spinnaker.clouddriver.cloudfoundry.client.model.v2.ServiceInstance.Type.MANAGED_SERVICE_INSTANCE;
 import static com.netflix.spinnaker.clouddriver.cloudfoundry.client.model.v2.ServiceInstance.Type.USER_PROVIDED_SERVICE_INSTANCE;
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
@@ -35,7 +36,10 @@ import com.netflix.spinnaker.clouddriver.cloudfoundry.client.api.ServiceInstance
 import com.netflix.spinnaker.clouddriver.cloudfoundry.client.model.ServiceInstanceResponse;
 import com.netflix.spinnaker.clouddriver.cloudfoundry.client.model.v2.*;
 import com.netflix.spinnaker.clouddriver.cloudfoundry.client.model.v3.CreateSharedServiceInstances;
-import com.netflix.spinnaker.clouddriver.cloudfoundry.model.*;
+import com.netflix.spinnaker.clouddriver.cloudfoundry.model.CloudFoundryService;
+import com.netflix.spinnaker.clouddriver.cloudfoundry.model.CloudFoundryServiceInstance;
+import com.netflix.spinnaker.clouddriver.cloudfoundry.model.CloudFoundryServicePlan;
+import com.netflix.spinnaker.clouddriver.cloudfoundry.model.CloudFoundrySpace;
 import java.io.IOException;
 import java.util.*;
 import java.util.function.BiConsumer;
@@ -44,40 +48,39 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import lombok.RequiredArgsConstructor;
+import okhttp3.ResponseBody;
 import org.springframework.util.StringUtils;
+import retrofit2.Call;
 
 @RequiredArgsConstructor
 public class ServiceInstances {
   private final ServiceInstanceService api;
   private final ConfigService configApi;
-  private final Organizations orgs;
   private final Spaces spaces;
 
-  public Void createServiceBindingsByName(
-      CloudFoundryServerGroup cloudFoundryServerGroup,
-      @Nullable List<String> serviceInstanceNames) {
-    if (serviceInstanceNames != null && !serviceInstanceNames.isEmpty()) {
-      List<String> serviceInstanceQuery =
-          getServiceQueryParams(serviceInstanceNames, cloudFoundryServerGroup.getSpace());
-      List<Resource<? extends AbstractServiceInstance>> serviceInstances = new ArrayList<>();
-      serviceInstances.addAll(
-          collectPageResources("service instances", pg -> api.all(pg, serviceInstanceQuery)));
-      serviceInstances.addAll(
-          collectPageResources(
-              "service instances", pg -> api.allUserProvided(pg, serviceInstanceQuery)));
+  public void createServiceBinding(CreateServiceBinding createServiceBinding) {
+    try {
+      safelyCall(() -> api.createServiceBinding(createServiceBinding));
+    } catch (CloudFoundryApiException e) {
+      if (e.getErrorCode() == null) throw e;
 
-      if (serviceInstances.size() != serviceInstanceNames.size()) {
-        throw new CloudFoundryApiException(
-            "Number of service instances does not match the number of service names");
-      }
-
-      for (Resource<? extends AbstractServiceInstance> serviceInstance : serviceInstances) {
-        api.createServiceBinding(
-            new CreateServiceBinding(
-                serviceInstance.getMetadata().getGuid(), cloudFoundryServerGroup.getId()));
+      switch (e.getErrorCode()) {
+        case SERVICE_INSTANCE_ALREADY_BOUND:
+          return;
+        default:
+          throw e;
       }
     }
-    return null;
+  }
+
+  public List<Resource<ServiceBinding>> findAllServiceBindingsByApp(String appGuid) {
+    String bindingsQuery = "app_guid:" + appGuid;
+    return collectPageResources(
+        "service bindings", pg -> api.getAllServiceBindings(singletonList(bindingsQuery)));
+  }
+
+  public void deleteServiceBinding(String serviceBindingGuid) {
+    safelyCall(() -> api.deleteServiceBinding(serviceBindingGuid));
   }
 
   private Resource<Service> findServiceByServiceName(String serviceName) {
@@ -107,7 +110,8 @@ public class ServiceInstances {
   }
 
   public List<CloudFoundryService> findAllServicesByRegion(String region) {
-    return orgs.findSpaceByRegion(region)
+    return spaces
+        .findSpaceByRegion(region)
         .map(
             space -> {
               List<Resource<Service>> services =
@@ -127,11 +131,25 @@ public class ServiceInstances {
         .orElse(Collections.emptyList());
   }
 
+  public List<Resource<? extends AbstractServiceInstance>> findAllServicesBySpaceAndNames(
+      CloudFoundrySpace space, List<String> serviceInstanceNames) {
+    if (serviceInstanceNames == null || serviceInstanceNames.isEmpty()) return emptyList();
+    List<String> serviceInstanceQuery = getServiceQueryParams(serviceInstanceNames, space);
+    List<Resource<? extends AbstractServiceInstance>> serviceInstances = new ArrayList<>();
+    serviceInstances.addAll(
+        collectPageResources("service instances", pg -> api.all(pg, serviceInstanceQuery)));
+    serviceInstances.addAll(
+        collectPageResources(
+            "service instances", pg -> api.allUserProvided(pg, serviceInstanceQuery)));
+    return serviceInstances;
+  }
+
   // Visible for testing
   CloudFoundryServiceInstance getOsbServiceInstanceByRegion(
       String region, String serviceInstanceName) {
     CloudFoundrySpace space =
-        orgs.findSpaceByRegion(region)
+        spaces
+            .findSpaceByRegion(region)
             .orElseThrow(() -> new CloudFoundryApiException("Cannot find region '" + region + "'"));
     return Optional.ofNullable(getOsbServiceInstance(space, serviceInstanceName))
         .orElseThrow(
@@ -166,7 +184,8 @@ public class ServiceInstances {
                 throw new CloudFoundryApiException(
                     "Cannot specify 'org > space' as any of the " + gerund + " regions");
               }
-              return orgs.findSpaceByRegion(r)
+              return spaces
+                  .findSpaceByRegion(r)
                   .orElseThrow(
                       () ->
                           new CloudFoundryApiException(
@@ -199,8 +218,7 @@ public class ServiceInstances {
   Void checkServiceShareable(
       String serviceInstanceName, CloudFoundryServiceInstance serviceInstance) {
     ConfigFeatureFlag featureFlag =
-        Optional.ofNullable(configApi.getConfigFeatureFlags()).orElse(Collections.emptySet())
-            .stream()
+        safelyCall(configApi::getConfigFeatureFlags).orElse(Collections.emptySet()).stream()
             .filter(it -> it.getName() == SERVICE_INSTANCE_SHARING)
             .findFirst()
             .orElseThrow(
@@ -212,14 +230,14 @@ public class ServiceInstances {
           "'service_instance_sharing' flag must be enabled in order to share services");
     }
     ServicePlan plan =
-        Optional.ofNullable(api.findServicePlanByServicePlanId(serviceInstance.getPlanId()))
+        safelyCall(() -> api.findServicePlanByServicePlanId(serviceInstance.getPlanId()))
             .map(Resource::getEntity)
             .orElseThrow(
                 () ->
                     new CloudFoundryApiException(
                         "The service plan for 'new-service-plan-name' was not found"));
     String extraString =
-        Optional.ofNullable(api.findServiceByServiceId(plan.getServiceGuid()))
+        safelyCall(() -> api.findServiceByServiceId(plan.getServiceGuid()))
             .map(Resource::getEntity)
             .map(
                 s ->
@@ -315,7 +333,8 @@ public class ServiceInstances {
   @Nullable
   public CloudFoundryServiceInstance getServiceInstance(String region, String serviceInstanceName) {
     CloudFoundrySpace space =
-        orgs.findSpaceByRegion(region)
+        spaces
+            .findSpaceByRegion(region)
             .orElseThrow(() -> new CloudFoundryApiException("Cannot find region '" + region + "'"));
     Supplier<CloudFoundryServiceInstance> si =
         () -> Optional.ofNullable(getOsbServiceInstance(space, serviceInstanceName)).orElse(null);
@@ -363,7 +382,7 @@ public class ServiceInstances {
 
   @Nullable
   private <T> Resource<T> getServiceInstance(
-      BiFunction<Integer, List<String>, Page<T>> func,
+      BiFunction<Integer, List<String>, Call<Page<T>>> func,
       CloudFoundrySpace space,
       @Nullable String serviceInstanceName) {
     if (isBlank(serviceInstanceName)) {
@@ -397,9 +416,10 @@ public class ServiceInstances {
 
   public ServiceInstanceResponse destroyServiceInstance(
       CloudFoundrySpace space, String serviceInstanceName) {
-    CloudFoundryServiceInstance serviceInstance = getOsbServiceInstance(space, serviceInstanceName);
-    if (serviceInstance != null) {
-      String serviceInstanceId = serviceInstance.getId();
+    CloudFoundryServiceInstance managedServiceInstance =
+        getOsbServiceInstance(space, serviceInstanceName);
+    if (managedServiceInstance != null) {
+      String serviceInstanceId = managedServiceInstance.getId();
       destroyServiceInstance(
           pg -> api.getBindingsForServiceInstance(serviceInstanceId, pg, null),
           () -> api.destroyServiceInstance(serviceInstanceId));
@@ -407,22 +427,29 @@ public class ServiceInstances {
           .setServiceInstanceName(serviceInstanceName)
           .setType(DELETE)
           .setState(IN_PROGRESS);
-    } else {
-      Optional.ofNullable(getUserProvidedServiceInstance(space, serviceInstanceName))
-          .ifPresent(
-              inst ->
-                  destroyServiceInstance(
-                      pg -> api.getBindingsForUserProvidedServiceInstance(inst.getId(), pg, null),
-                      () -> api.destroyUserProvidedServiceInstance(inst.getId())));
+    }
+
+    CloudFoundryServiceInstance userProvidedServiceInstance =
+        getUserProvidedServiceInstance(space, serviceInstanceName);
+    if (userProvidedServiceInstance != null) {
+      String serviceInstanceId = userProvidedServiceInstance.getId();
+      destroyServiceInstance(
+          pg -> api.getBindingsForUserProvidedServiceInstance(serviceInstanceId, pg, null),
+          () -> api.destroyUserProvidedServiceInstance(serviceInstanceId));
       return new ServiceInstanceResponse()
           .setServiceInstanceName(serviceInstanceName)
           .setType(DELETE)
-          .setState(NOT_FOUND);
+          .setState(IN_PROGRESS);
     }
+    return new ServiceInstanceResponse()
+        .setServiceInstanceName(serviceInstanceName)
+        .setType(DELETE)
+        .setState(NOT_FOUND);
   }
 
   private void destroyServiceInstance(
-      Function<Integer, Page<ServiceBinding>> fetchPage, Runnable delete) {
+      Function<Integer, Call<Page<ServiceBinding>>> fetchPage,
+      Supplier<Call<ResponseBody>> delete) {
     List<Resource<ServiceBinding>> serviceBindings =
         collectPageResources("service bindings", fetchPage);
     if (!serviceBindings.isEmpty()) {
@@ -431,7 +458,7 @@ public class ServiceInstances {
               + serviceBindings.size()
               + " service binding(s) exist");
     }
-    safelyCall(delete::run);
+    safelyCall(delete);
   }
 
   public ServiceInstanceResponse createServiceInstance(
@@ -477,10 +504,12 @@ public class ServiceInstances {
             api::updateServiceInstance,
             api::all,
             c -> getOsbServiceInstance(space, c.getName()),
-            (c, r) -> {
-              if (!r.getPlanId().equals(c.getServicePlanGuid())) {
+            (createServiceInstance, r) -> {
+              if (!r.getPlanId().equals(createServiceInstance.getServicePlanGuid())) {
                 throw new CloudFoundryApiException(
-                    "A service with name '" + c.getName() + "' exists but has a different plan");
+                    "A service with name '"
+                        + createServiceInstance.getName()
+                        + "' exists but has a different plan");
               }
             },
             updatable,
@@ -524,9 +553,9 @@ public class ServiceInstances {
   private <T extends AbstractCreateServiceInstance, S extends AbstractServiceInstance>
       ServiceInstanceResponse createServiceInstance(
           T command,
-          Function<T, Resource<S>> create,
-          BiFunction<String, T, Resource<S>> update,
-          BiFunction<Integer, List<String>, Page<S>> getAllServices,
+          Function<T, Call<Resource<S>>> create,
+          BiFunction<String, T, Call<Resource<S>>> update,
+          BiFunction<Integer, List<String>, Call<Page<S>>> getAllServices,
           Function<T, CloudFoundryServiceInstance> getServiceInstance,
           BiConsumer<T, CloudFoundryServiceInstance> updateValidation,
           boolean updatable,

@@ -15,27 +15,29 @@
  */
 
 package com.netflix.spinnaker.clouddriver.aws.deploy.ops
+
 import com.amazonaws.services.autoscaling.model.AutoScalingGroup
 import com.amazonaws.services.autoscaling.model.DescribeAutoScalingGroupsRequest
 import com.amazonaws.services.ec2.model.DescribeSubnetsRequest
+import com.amazonaws.services.ec2.model.LaunchTemplateVersion
 import com.amazonaws.services.elasticloadbalancingv2.model.DescribeTargetGroupsRequest
 import com.netflix.frigga.Names
 import com.netflix.frigga.autoscaling.AutoScalingGroupNameBuilder
+import com.netflix.spinnaker.clouddriver.aws.deploy.description.BasicAmazonDeployDescription
+import com.netflix.spinnaker.clouddriver.aws.deploy.handlers.BasicAmazonDeployHandler
 import com.netflix.spinnaker.clouddriver.aws.deploy.userdata.LocalFileUserDataProperties
 import com.netflix.spinnaker.clouddriver.aws.deploy.validators.BasicAmazonDeployDescriptionValidator
+import com.netflix.spinnaker.clouddriver.aws.model.SubnetData
 import com.netflix.spinnaker.clouddriver.aws.security.AmazonClientProvider
 import com.netflix.spinnaker.clouddriver.aws.security.NetflixAmazonCredentials
+import com.netflix.spinnaker.clouddriver.aws.services.RegionScopedProviderFactory
 import com.netflix.spinnaker.clouddriver.data.task.Task
 import com.netflix.spinnaker.clouddriver.data.task.TaskRepository
 import com.netflix.spinnaker.clouddriver.deploy.DeploymentResult
 import com.netflix.spinnaker.clouddriver.deploy.DescriptionValidationErrors
 import com.netflix.spinnaker.clouddriver.deploy.DescriptionValidationException
 import com.netflix.spinnaker.clouddriver.orchestration.AtomicOperation
-import com.netflix.spinnaker.clouddriver.security.AccountCredentialsProvider
-import com.netflix.spinnaker.clouddriver.aws.deploy.description.BasicAmazonDeployDescription
-import com.netflix.spinnaker.clouddriver.aws.deploy.handlers.BasicAmazonDeployHandler
-import com.netflix.spinnaker.clouddriver.aws.model.SubnetData
-import com.netflix.spinnaker.clouddriver.aws.services.RegionScopedProviderFactory
+import com.netflix.spinnaker.credentials.CredentialsRepository
 import org.springframework.beans.factory.annotation.Autowired
 
 class CopyLastAsgAtomicOperation implements AtomicOperation<DeploymentResult> {
@@ -55,7 +57,7 @@ class CopyLastAsgAtomicOperation implements AtomicOperation<DeploymentResult> {
   AmazonClientProvider amazonClientProvider
 
   @Autowired
-  AccountCredentialsProvider accountCredentialsProvider
+  CredentialsRepository<NetflixAmazonCredentials> credentialsRepository
 
   @Autowired
   RegionScopedProviderFactory regionScopedProviderFactory
@@ -89,7 +91,7 @@ class CopyLastAsgAtomicOperation implements AtomicOperation<DeploymentResult> {
       def sourceAsgCredentials
       if (description.source.account && description.source.region && description.source.asgName) {
         sourceRegion = description.source.region
-        sourceAsgCredentials = accountCredentialsProvider.getCredentials(description.source.account) as NetflixAmazonCredentials
+        sourceAsgCredentials = credentialsRepository.getOne(description.source.account)
         def sourceAutoScaling = amazonClientProvider.getAutoScaling(sourceAsgCredentials, sourceRegion, true)
         def request = new DescribeAutoScalingGroupsRequest(autoScalingGroupNames: [description.source.asgName])
         List<AutoScalingGroup> ancestorAsgs = sourceAutoScaling.describeAutoScalingGroups(request).autoScalingGroups
@@ -130,8 +132,80 @@ class CopyLastAsgAtomicOperation implements AtomicOperation<DeploymentResult> {
       }
 
       if (ancestorAsg) {
+        String iamInstanceProfile
+        String imageId
+        String instanceType
+        String spotMaxPrice
+        String keyName
+        String kernelId
+        String ramdiskId
+        String userData
+        String classicLinkVPCId = null
 
-        def ancestorLaunchConfiguration = sourceRegionScopedProvider.asgService.getLaunchConfiguration(ancestorAsg.launchConfigurationName)
+        Boolean ebsOptimized
+        Boolean instanceMonitoring
+        Boolean associatePublicIpAddress
+
+        List<String> securityGroups
+        List<String> classicLinkVPCSecurityGroups = null
+        if (ancestorAsg.launchTemplate != null) {
+          LaunchTemplateVersion launchTemplateVersion = sourceRegionScopedProvider
+            .launchTemplateService.getLaunchTemplateVersion(ancestorAsg.launchTemplate)
+            .orElseThrow({
+              new IllegalStateException("Requested launch template $ancestorAsg.launchTemplate was not found")
+            })
+
+          def launchTemplateData = launchTemplateVersion.launchTemplateData
+
+          newDescription.setLaunchTemplate = true
+          imageId = launchTemplateData.imageId
+          keyName = launchTemplateData.keyName
+          kernelId = launchTemplateData.kernelId
+          userData = launchTemplateData.userData
+          ramdiskId = launchTemplateData.ramDiskId
+          instanceType = launchTemplateData.instanceType
+          securityGroups = launchTemplateData.securityGroups
+          ebsOptimized = launchTemplateData.ebsOptimized
+          iamInstanceProfile = launchTemplateData.iamInstanceProfile?.name
+          instanceMonitoring = launchTemplateData.monitoring?.enabled
+          spotMaxPrice = launchTemplateData.instanceMarketOptions?.spotOptions?.maxPrice
+          newDescription.requireIMDSv2 = description.requireIMDSv2 != null ? description.requireIMDSv2 : launchTemplateData.metadataOptions?.httpTokens == "required"
+          newDescription.associateIPv6Address = description.associateIPv6Address 
+          if (!launchTemplateData.networkInterfaces?.empty && launchTemplateData.networkInterfaces*.associatePublicIpAddress?.any()) {
+            associatePublicIpAddress = true
+          }
+          if (!launchTemplateData.networkInterfaces?.empty) {
+            // Network interfaces are the source of truth for launch template security groups
+            def networkInterface = launchTemplateData.networkInterfaces.find({it.deviceIndex == 0 })
+            if (networkInterface != null) {
+              securityGroups = networkInterface.groups
+              if (description.associateIPv6Address == null) {
+                newDescription.associateIPv6Address = networkInterface.getIpv6AddressCount() > 0 ? true : false
+              }
+            }
+          }
+
+          // unlimited CPU credits is not applicable for all instance types. So, simply use the incoming request's value to keep the description valid.
+          newDescription.unlimitedCpuCredits = description.unlimitedCpuCredits
+        } else {
+          def ancestorLaunchConfiguration = sourceRegionScopedProvider
+            .asgService.getLaunchConfiguration(ancestorAsg.launchConfigurationName)
+
+          keyName = ancestorLaunchConfiguration.keyName
+          imageId = ancestorLaunchConfiguration.imageId
+          kernelId = ancestorLaunchConfiguration.kernelId
+          userData = ancestorLaunchConfiguration.userData
+          ramdiskId = ancestorLaunchConfiguration.ramdiskId
+          spotMaxPrice = ancestorLaunchConfiguration.spotPrice
+          ebsOptimized = ancestorLaunchConfiguration.ebsOptimized
+          instanceType = ancestorLaunchConfiguration.instanceType
+          securityGroups = ancestorLaunchConfiguration.securityGroups
+          classicLinkVPCId = ancestorLaunchConfiguration.classicLinkVPCId
+          iamInstanceProfile = ancestorLaunchConfiguration.iamInstanceProfile
+          instanceMonitoring = ancestorLaunchConfiguration.instanceMonitoring?.enabled
+          associatePublicIpAddress = ancestorLaunchConfiguration.associatePublicIpAddress
+          classicLinkVPCSecurityGroups = ancestorLaunchConfiguration.classicLinkVPCSecurityGroups
+        }
 
         if (ancestorAsg.VPCZoneIdentifier) {
           task.updateStatus BASE_PHASE, "Looking up subnet type..."
@@ -139,10 +213,10 @@ class CopyLastAsgAtomicOperation implements AtomicOperation<DeploymentResult> {
           task.updateStatus BASE_PHASE, "Found: ${newDescription.subnetType}."
         }
 
-        newDescription.iamRole = description.iamRole ?: ancestorLaunchConfiguration.iamInstanceProfile
-        newDescription.amiName = description.amiName ?: ancestorLaunchConfiguration.imageId
+        newDescription.iamRole = description.iamRole ?: iamInstanceProfile
+        newDescription.amiName = description.amiName ?: imageId
         newDescription.availabilityZones = [(targetRegion): description.availabilityZones[targetRegion] ?: ancestorAsg.availabilityZones]
-        newDescription.instanceType = description.instanceType ?: ancestorLaunchConfiguration.instanceType
+        newDescription.instanceType = description.instanceType ?: instanceType
         newDescription.loadBalancers = description.loadBalancers != null ? description.loadBalancers : ancestorAsg.loadBalancerNames
         newDescription.targetGroups = description.targetGroups
         if (newDescription.targetGroups == null && ancestorAsg.targetGroupARNs && ancestorAsg.targetGroupARNs.size() > 0) {
@@ -151,27 +225,28 @@ class CopyLastAsgAtomicOperation implements AtomicOperation<DeploymentResult> {
           newDescription.targetGroups = targetGroupNames
         }
 
-        newDescription.securityGroups = description.securityGroups != null ? description.securityGroups : translateSecurityGroupIds(ancestorLaunchConfiguration.securityGroups)
+        newDescription.securityGroups = description.securityGroups != null ? description.securityGroups : translateSecurityGroupIds(securityGroups)
         newDescription.capacity.min = description.capacity?.min != null ? description.capacity.min : ancestorAsg.minSize
         newDescription.capacity.max = description.capacity?.max != null ? description.capacity.max : ancestorAsg.maxSize
         newDescription.capacity.desired = description.capacity?.desired != null ? description.capacity.desired : ancestorAsg.desiredCapacity
-        newDescription.keyPair = description.keyPair ?: (sourceIsTarget ? ancestorLaunchConfiguration.keyName : description.credentials.defaultKeyPair)
-        newDescription.associatePublicIpAddress = description.associatePublicIpAddress != null ? description.associatePublicIpAddress : ancestorLaunchConfiguration.associatePublicIpAddress
+        newDescription.keyPair = description.keyPair ?: (sourceIsTarget ? keyName : description.credentials.defaultKeyPair)
+        newDescription.associatePublicIpAddress = description.associatePublicIpAddress != null ? description.associatePublicIpAddress : associatePublicIpAddress
         newDescription.cooldown = description.cooldown != null ? description.cooldown : ancestorAsg.defaultCooldown
         newDescription.enabledMetrics = description.enabledMetrics != null ? description.enabledMetrics : ancestorAsg.enabledMetrics*.metric
         newDescription.healthCheckGracePeriod = description.healthCheckGracePeriod != null ? description.healthCheckGracePeriod : ancestorAsg.healthCheckGracePeriod
         newDescription.healthCheckType = description.healthCheckType ?: ancestorAsg.healthCheckType
         newDescription.suspendedProcesses = description.suspendedProcesses != null ? description.suspendedProcesses : ancestorAsg.suspendedProcesses*.processName
         newDescription.terminationPolicies = description.terminationPolicies != null ? description.terminationPolicies : ancestorAsg.terminationPolicies
-        newDescription.kernelId = description.kernelId ?: (ancestorLaunchConfiguration.kernelId ?: null)
-        newDescription.ramdiskId = description.ramdiskId ?: (ancestorLaunchConfiguration.ramdiskId ?: null)
-        newDescription.instanceMonitoring = description.instanceMonitoring != null ? description.instanceMonitoring : ancestorLaunchConfiguration.instanceMonitoring?.enabled
-        newDescription.ebsOptimized = description.ebsOptimized != null ? description.ebsOptimized : ancestorLaunchConfiguration.ebsOptimized
-        newDescription.classicLinkVpcId = description.classicLinkVpcId != null ? description.classicLinkVpcId : ancestorLaunchConfiguration.classicLinkVPCId
-        newDescription.classicLinkVpcSecurityGroups = description.classicLinkVpcSecurityGroups != null ? description.classicLinkVpcSecurityGroups : translateSecurityGroupIds(ancestorLaunchConfiguration.classicLinkVPCSecurityGroups)
+        newDescription.kernelId = description.kernelId ?: (kernelId ?: null)
+        newDescription.ramdiskId = description.ramdiskId ?: (ramdiskId ?: null)
+        newDescription.instanceMonitoring = description.instanceMonitoring != null ? description.instanceMonitoring : instanceMonitoring
+        newDescription.ebsOptimized = description.ebsOptimized != null ? description.ebsOptimized : ebsOptimized
+        newDescription.classicLinkVpcId = description.classicLinkVpcId != null ? description.classicLinkVpcId : classicLinkVPCId
+        newDescription.classicLinkVpcSecurityGroups = description.classicLinkVpcSecurityGroups != null ? description.classicLinkVpcSecurityGroups : translateSecurityGroupIds(classicLinkVPCSecurityGroups)
         newDescription.tags = description.tags != null ? description.tags : ancestorAsg.tags.collectEntries {
           [(it.getKey()): it.getValue()]
         }
+        newDescription.blockDevices
 
         /*
           Copy over the ancestor user data only if the UserDataProviders behavior is disabled and no user data is provided
@@ -179,11 +254,11 @@ class CopyLastAsgAtomicOperation implements AtomicOperation<DeploymentResult> {
           This is to avoid having duplicate user data.
          */
         if (localFileUserDataProperties && !localFileUserDataProperties.enabled) {
-          newDescription.base64UserData = description.base64UserData != null ? description.base64UserData : ancestorLaunchConfiguration.userData
+          newDescription.base64UserData = description.base64UserData != null ? description.base64UserData : userData
         }
 
         if (description.spotPrice == null) {
-          newDescription.spotPrice = ancestorLaunchConfiguration.spotPrice
+          newDescription.spotPrice = spotMaxPrice
         } else if (description.spotPrice) {
           newDescription.spotPrice = description.spotPrice
         } else { // ""
