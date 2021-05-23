@@ -57,6 +57,12 @@ class ElastigroupUpdateRequestConverter {
       sdkElastigroupScalingConfigurationBuilder.setDown(sdkScalingDown)
     }
 
+    def scalingTarget = spinnakerScaling.get("target", null)
+    if (scalingTarget != null) {
+      def sdkScalingTarget = ((List<Map<String, Object>>)scalingTarget).collect { toScalingPolicy(it) }
+      sdkElastigroupScalingConfigurationBuilder.setTarget(sdkScalingTarget)
+    }
+
     def retVal = sdkElastigroupScalingConfigurationBuilder.build()
     retVal
   }
@@ -136,6 +142,17 @@ class ElastigroupUpdateRequestConverter {
       sdkScalingPolicyBuilder.setIsEnabled(isEnabled as Boolean)
     }
 
+    def target = spinnakerScalingPolicy.get("target", null)
+    if (target != null) {
+      sdkScalingPolicyBuilder.setTarget(target as Integer)
+    }
+
+    def predictive = spinnakerScalingPolicy.get("predictive", null)
+    if (predictive != null) {
+      def sdkPredictive = toScalingPredictive(predictive as Map<String, Object>)
+      sdkScalingPolicyBuilder.setPredictive(sdkPredictive)
+    }
+
     def retVal = sdkScalingPolicyBuilder.build()
     retVal
   }
@@ -192,6 +209,19 @@ class ElastigroupUpdateRequestConverter {
     }
 
     def retVal = sdkScalingActionBuilder.build()
+    retVal
+  }
+
+  static PredictiveScale toScalingPredictive(Map<String, Object> spinnakerScalingPredictive) {
+    def sdkScalingPredictiveBuilder = PredictiveScale.Builder.get()
+
+    def mode = spinnakerScalingPredictive.get("mode", null)
+    if (mode != null) {
+      def modeEnum = ScalingPredictiveModeEnum.fromName(mode as String)
+      sdkScalingPredictiveBuilder.setMode(modeEnum)
+    }
+
+    def retVal = sdkScalingPredictiveBuilder.build()
     retVal
   }
 }
