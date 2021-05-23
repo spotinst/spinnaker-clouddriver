@@ -86,7 +86,7 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
     this.accountName = account.getName()
     this.objectMapper = objectMapper.enable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
     this.registry = registry
-    this.metricsSupport = new OnDemandMetricsSupport(registry, this, "${SpotCloudProvider.ID}:${OnDemandAgent.OnDemandType.ServerGroup}")
+    this.metricsSupport = new OnDemandMetricsSupport(registry, this, "${SpotCloudProvider.ID}:${OnDemandType.ServerGroup}")
   }
 
   @Override
