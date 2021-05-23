@@ -42,18 +42,23 @@ class SpotClusterProvider implements ClusterProvider<SpotCluster>, ServerGroupPr
 
   final String cloudProviderId = SpotCloudProvider.ID
 
-  final ObjectMapper objectMapper
-  private AccountCredentialsProvider accountCredentialsProvider
-  private final Cache cacheView
+  @Autowired
+  ObjectMapper objectMapper
 
   @Autowired
-  SpotClusterProvider(ObjectMapper objectMapper,
-                      AccountCredentialsProvider accountCredentialsProvider,
-                      Cache cacheView) {
-    this.objectMapper = objectMapper
-    this.accountCredentialsProvider = accountCredentialsProvider
-    this.cacheView = cacheView
-  }
+  AccountCredentialsProvider accountCredentialsProvider
+
+  @Autowired
+  Cache cacheView
+
+//  @Autowired
+//  SpotClusterProvider(ObjectMapper objectMapper,
+//                      AccountCredentialsProvider accountCredentialsProvider,
+//                      Cache cacheView) {
+//    this.objectMapper = objectMapper
+//    this.accountCredentialsProvider = accountCredentialsProvider
+//    this.cacheView = cacheView
+//  }
 
   @Override
   Map<String, Set<SpotCluster>> getClusters() {
