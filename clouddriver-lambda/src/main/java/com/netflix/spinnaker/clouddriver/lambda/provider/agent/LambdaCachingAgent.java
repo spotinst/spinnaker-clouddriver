@@ -43,6 +43,7 @@ import com.netflix.spinnaker.clouddriver.aws.security.AmazonClientProvider;
 import com.netflix.spinnaker.clouddriver.aws.security.NetflixAmazonCredentials;
 import com.netflix.spinnaker.clouddriver.cache.OnDemandAgent;
 import com.netflix.spinnaker.clouddriver.cache.OnDemandMetricsSupport;
+import com.netflix.spinnaker.clouddriver.cache.OnDemandType;
 import com.netflix.spinnaker.clouddriver.lambda.cache.Keys;
 import java.util.*;
 import java.util.function.Predicate;
@@ -112,6 +113,7 @@ public class LambdaCachingAgent implements CachingAgent, AccountAware, OnDemandA
     log.info("Describing items in {}", getAgentType());
 
     AWSLambda lambda = amazonClientProvider.getAmazonLambda(account, region);
+
     String nextMarker = null;
     List<FunctionConfiguration> lstFunction = new ArrayList<FunctionConfiguration>();
 
@@ -138,9 +140,18 @@ public class LambdaCachingAgent implements CachingAgent, AccountAware, OnDemandA
       attributes.put("account", account.getName());
       attributes.put("region", region);
       attributes.put("revisions", listFunctionRevisions(x.getFunctionArn()));
-      attributes.put("aliasConfiguration", listAliasConfiguration(x.getFunctionArn()));
-      attributes.put(
-          "eventSourceMappings", listEventSourceMappingConfiguration(x.getFunctionArn()));
+      List<AliasConfiguration> allAliases = listAliasConfiguration(x.getFunctionArn());
+      attributes.put("aliasConfigurations", allAliases);
+      List<EventSourceMappingConfiguration> eventSourceMappings =
+          listEventSourceMappingConfiguration(x.getFunctionArn());
+      List<EventSourceMappingConfiguration> aliasEvents = new ArrayList<>();
+      for (AliasConfiguration currAlias : allAliases) {
+        List<EventSourceMappingConfiguration> currAliasEvents =
+            listEventSourceMappingConfiguration(currAlias.getAliasArn());
+        aliasEvents.addAll(currAliasEvents);
+      }
+      eventSourceMappings.addAll(aliasEvents);
+      attributes.put("eventSourceMappings", eventSourceMappings);
 
       attributes = addConfigAttributes(attributes, x, lambda);
       String functionName = x.getFunctionName();
@@ -265,12 +276,14 @@ public class LambdaCachingAgent implements CachingAgent, AccountAware, OnDemandA
 
   @Override
   public boolean handles(OnDemandType type, String cloudProvider) {
-    return type == OnDemandType.Function && cloudProvider.equals(AmazonCloudProvider.ID);
+    return type.equals(OnDemandType.Function) && cloudProvider.equals(AmazonCloudProvider.ID);
   }
 
   @Override
   public OnDemandResult handle(ProviderCache providerCache, Map<String, ?> data) {
-    if (!validKeys(data)) {
+    if (!validKeys(data)
+        || !data.get("account").equals(getAccountName())
+        || !data.get("region").equals(region)) {
       return null;
     }
 
@@ -330,7 +343,7 @@ public class LambdaCachingAgent implements CachingAgent, AccountAware, OnDemandA
   }
 
   @Override
-  public Collection<Map> pendingOnDemandRequests(ProviderCache providerCache) {
+  public Collection<Map<String, Object>> pendingOnDemandRequests(ProviderCache providerCache) {
     return null;
   }
 

@@ -27,6 +27,7 @@ import com.netflix.spinnaker.cats.cache.DefaultCacheData
 import com.netflix.spinnaker.cats.provider.ProviderCache
 import com.netflix.spinnaker.clouddriver.cache.OnDemandAgent
 import com.netflix.spinnaker.clouddriver.cache.OnDemandMetricsSupport
+import com.netflix.spinnaker.clouddriver.cache.OnDemandType
 import com.netflix.spinnaker.clouddriver.spot.SpotCloudProvider
 import com.netflix.spinnaker.clouddriver.spot.cache.Keys
 import com.netflix.spinnaker.clouddriver.spot.provider.view.MutableCacheData
@@ -85,7 +86,7 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
     this.accountName = account.getName()
     this.objectMapper = objectMapper.enable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
     this.registry = registry
-    this.metricsSupport = new OnDemandMetricsSupport(registry, this, "${SpotCloudProvider.ID}:${OnDemandAgent.OnDemandType.ServerGroup}")
+    this.metricsSupport = new OnDemandMetricsSupport(registry, this, "${SpotCloudProvider.ID}:${OnDemandType.ServerGroup}")
   }
 
   @Override
@@ -160,8 +161,8 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
   }
 
   @Override
-  boolean handles(OnDemandAgent.OnDemandType type, String cloudProvider) {
-    type == OnDemandAgent.OnDemandType.ServerGroup && cloudProvider == SpotCloudProvider.ID
+  boolean handles(OnDemandType type, String cloudProvider) {
+    type == OnDemandType.ServerGroup && cloudProvider == SpotCloudProvider.ID
   }
 
   @Override
