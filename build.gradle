@@ -94,7 +94,12 @@ subprojects {
           }
         }
         minHeapSize = "512m"
-        maxHeapSize = "512m"
+
+        // They added it originally for Expiring Daemon because JVM heap space is exhausted
+        // enabling it only when we are not in debug mode, be cautious when changing this
+        if (System.getProperty('DEBUG', 'false') == 'true') {
+          maxHeapSize = "512m"
+        }
       }
       jacoco {
         enabled = project.hasProperty('testCoverage')
