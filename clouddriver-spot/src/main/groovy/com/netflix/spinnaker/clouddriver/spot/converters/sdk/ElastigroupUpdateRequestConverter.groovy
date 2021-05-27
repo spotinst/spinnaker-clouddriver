@@ -193,6 +193,11 @@ class ElastigroupUpdateRequestConverter {
       sdkScalingActionBuilder.setMinTargetCapacity(minTargetCapacity as String)
     }
 
+    def maxTargetCapacity = spinnakerScalingAction.get("maxTargetCapacity", null)
+    if (maxTargetCapacity != null) {
+      sdkScalingActionBuilder.setMaxTargetCapacity(maxTargetCapacity as String)
+    }
+
     def target = spinnakerScalingAction.get("target", null)
     if (target != null) {
       sdkScalingActionBuilder.setTarget(target as String)
