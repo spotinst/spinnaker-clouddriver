@@ -29,9 +29,12 @@ import com.netflix.spinnaker.clouddriver.cache.OnDemandAgent
 import com.netflix.spinnaker.clouddriver.cache.OnDemandMetricsSupport
 import com.netflix.spinnaker.clouddriver.spot.SpotCloudProvider
 import com.netflix.spinnaker.clouddriver.spot.cache.Keys
+import com.netflix.spinnaker.clouddriver.spot.model.SpotInstance
 import com.netflix.spinnaker.clouddriver.spot.provider.view.MutableCacheData
 import com.netflix.spinnaker.clouddriver.spot.security.SpotAccountCredentials
 import com.spotinst.sdkjava.model.Elastigroup
+import com.spotinst.sdkjava.model.ElastigroupActiveInstance
+import com.spotinst.sdkjava.model.ElastigroupGetActiveInstancesRequest
 import com.spotinst.sdkjava.model.ElastigroupGetAllRequest
 import com.spotinst.sdkjava.model.ElastigroupGetInstanceHealthinessRequest
 import com.spotinst.sdkjava.model.ElastigroupGetSuspensionsRequest
@@ -322,7 +325,7 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
   }
 
   private void cacheServerGroup(ElastigroupData data, Map<String, CacheData> serverGroups) {
-    def instances = getElastigroupInstances(data)
+    List<SpotInstance> instances = getElastigroupInstances(data)
     def suspensions = getElastigroupSuspensions(data)
 
     serverGroups[data.serverGroup].with {
@@ -349,13 +352,50 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
     return retVal
   }
 
-  private List<ElastigroupInstanceHealthiness> getElastigroupInstances(ElastigroupData data) {
+  private List<SpotInstance> getElastigroupInstances(ElastigroupData data) {
     def elastigroupClient = this.account.elastigroupClient
 
     ElastigroupGetInstanceHealthinessRequest.Builder healthinessRequestBuilder = ElastigroupGetInstanceHealthinessRequest.Builder.get()
     ElastigroupGetInstanceHealthinessRequest healthinessRequest = healthinessRequestBuilder.setElastigroupId(data.elastigroup.id).build()
     List<ElastigroupInstanceHealthiness> instanceHealthinesses = elastigroupClient.getInstanceHealthiness(healthinessRequest)
 
-    return instanceHealthinesses
+    ElastigroupGetActiveInstancesRequest activeInstancesRequest = ElastigroupGetActiveInstancesRequest.Builder.get().setElastigroupId(data.elastigroup.id).build()
+    List<ElastigroupActiveInstance> activeInstances = elastigroupClient.getActiveInstances(activeInstancesRequest)
+
+    Map<String, ElastigroupInstanceHealthiness> healthinessMap = new HashMap<>()
+
+    for (ElastigroupInstanceHealthiness instance : instanceHealthinesses) {
+      healthinessMap.put(instance.instanceId, instance)
+    }
+
+    Map<String, ElastigroupActiveInstance> activeMap = new HashMap<>()
+
+    for (ElastigroupActiveInstance instance : activeInstances) {
+      activeMap.put(instance.instanceId, instance)
+    }
+
+    List<SpotInstance> spotInstances = new ArrayList<>();
+
+    for (Map.Entry<String, ElastigroupInstanceHealthiness> healthInstanceEntry : healthinessMap) {
+      ElastigroupInstanceHealthiness healthInstance = healthInstanceEntry.getValue()
+      SpotInstance spotInstance = new SpotInstance()
+      spotInstance.setName(healthInstance.instanceId)
+      spotInstance.setHealthState(SpotInstance.convertSpotHealthStatusToHealthState(healthInstance.healthStatus))
+      spotInstance.setZone(healthInstance.availabilityZone)
+      spotInstance.setLifecycle(healthInstance.lifeCycle)
+      spotInstance.setPrivateIp(healthInstance.privateIp)
+      spotInstance.setServerGroup(healthInstance.groupId)
+
+      ElastigroupActiveInstance activeInstance = activeMap.get(healthInstance.instanceId)
+      if (activeInstance != null) {
+        spotInstance.setLaunchTime(activeInstance.createdAt.toInstant().toEpochMilli())
+        spotInstance.setType(activeInstance.instanceType)
+        spotInstance.setPublicIp(activeInstance.publicIp)
+      }
+
+      spotInstances.add(spotInstance)
+    }
+
+    return spotInstances
   }
 }

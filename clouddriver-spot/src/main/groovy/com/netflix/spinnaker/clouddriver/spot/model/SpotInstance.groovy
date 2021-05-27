@@ -21,6 +21,8 @@ import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.netflix.spinnaker.clouddriver.model.HealthState
 import com.netflix.spinnaker.clouddriver.model.Instance
 import com.netflix.spinnaker.clouddriver.spot.SpotCloudProvider
+import com.spotinst.sdkjava.enums.AwsInstanceLifecycleEnum
+import com.spotinst.sdkjava.enums.AwsInstanceTypeEnum
 import com.spotinst.sdkjava.enums.InstanceHealthStatusEnum
 
 class SpotInstance implements Instance, Serializable {
@@ -30,6 +32,11 @@ class SpotInstance implements Instance, Serializable {
   HealthState healthState
   String zone
   List<Map<String, Object>> health = []
+  AwsInstanceTypeEnum type;
+  AwsInstanceLifecycleEnum lifecycle;
+  String serverGroup;
+  String privateIp;
+  String publicIp;
   final String providerType = SpotCloudProvider.ID
   final String cloudProvider = SpotCloudProvider.ID
 
