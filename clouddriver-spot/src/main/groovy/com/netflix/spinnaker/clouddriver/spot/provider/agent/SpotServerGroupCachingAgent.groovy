@@ -21,7 +21,11 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.netflix.frigga.Names
 import com.netflix.spectator.api.Registry
-import com.netflix.spinnaker.cats.agent.*
+import com.netflix.spinnaker.cats.agent.AccountAware
+import com.netflix.spinnaker.cats.agent.AgentDataType
+import com.netflix.spinnaker.cats.agent.CacheResult
+import com.netflix.spinnaker.cats.agent.CachingAgent
+import com.netflix.spinnaker.cats.agent.DefaultCacheResult
 import com.netflix.spinnaker.cats.cache.CacheData
 import com.netflix.spinnaker.cats.cache.DefaultCacheData
 import com.netflix.spinnaker.cats.provider.ProviderCache
@@ -44,7 +48,11 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import static com.netflix.spinnaker.cats.agent.AgentDataType.Authority.AUTHORITATIVE
-import static com.netflix.spinnaker.clouddriver.core.provider.agent.Namespace.*
+import static com.netflix.spinnaker.clouddriver.core.provider.agent.Namespace.APPLICATIONS
+import static com.netflix.spinnaker.clouddriver.core.provider.agent.Namespace.CLUSTERS
+import static com.netflix.spinnaker.clouddriver.core.provider.agent.Namespace.INSTANCES
+import static com.netflix.spinnaker.clouddriver.core.provider.agent.Namespace.ON_DEMAND
+import static com.netflix.spinnaker.clouddriver.core.provider.agent.Namespace.SERVER_GROUPS
 
 /**
  * A caching agent for Spot server groups.
@@ -71,6 +79,7 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
     AUTHORITATIVE.forType(SERVER_GROUPS.ns),
     AUTHORITATIVE.forType(CLUSTERS.ns),
     AUTHORITATIVE.forType(APPLICATIONS.ns),
+    AUTHORITATIVE.forType(INSTANCES.ns),
   ] as Set)
 
   final String accountName
@@ -250,6 +259,7 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
     log.info("Describing items in $agentType")
 
     Map<String, CacheData> serverGroups = cache()
+    Map<String, CacheData> instances = cache()
     Map<String, CacheData> applications = cache()
     Map<String, CacheData> clusters = cache()
 
@@ -258,7 +268,7 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
         ElastigroupData data = new ElastigroupData(elastigroup, accountName)
         cacheApplication(data, applications)
         cacheCluster(data, clusters)
-        cacheServerGroup(data, serverGroups)
+        cacheServerGroup(data, serverGroups, instances)
       } catch (Exception ex) {
         log.warn("Failed to cache ${elastigroup.name} in ${accountName}/${elastigroup.region}", ex)
       }
@@ -267,7 +277,8 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
       [
         (APPLICATIONS.ns) : applications.values(),
         (CLUSTERS.ns)     : clusters.values(),
-        (SERVER_GROUPS.ns): serverGroups.values()
+        (SERVER_GROUPS.ns): serverGroups.values(),
+        (INSTANCES.ns)    : instances.values()
       ])
 
     def cacheResults = result.cacheResults
@@ -324,7 +335,7 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
     }
   }
 
-  private void cacheServerGroup(ElastigroupData data, Map<String, CacheData> serverGroups) {
+  private void cacheServerGroup(ElastigroupData data, Map<String, CacheData> serverGroups, Map<String, CacheData> instancesCache) {
     List<SpotInstance> instances = getElastigroupInstances(data)
     def suspensions = getElastigroupSuspensions(data)
 
@@ -336,9 +347,21 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
       attributes.cluster = data.name.cluster
       attributes.elastigroupInstances = instances
       attributes.suspendedProcesses = suspensions.suspensions
+      attributes.asg = getAsgWithCapacity(data)
 
       relationships[APPLICATIONS.ns].add(data.appName)
       relationships[CLUSTERS.ns].add(data.cluster)
+    }
+
+    for (SpotInstance instance : instances) {
+      String instanceCacheKey = Keys.getInstanceKey(instance.getName(), accountName, data.elastigroup.region)
+      Map<String, Object> instanceAttributes = objectMapper.convertValue(instance, new TypeReference<Map<String, Object>>() {
+      })
+      instancesCache[instanceCacheKey].with {
+        attributes.putAll(instanceAttributes)
+
+        relationships[SERVER_GROUPS.ns].add(data.serverGroup)
+      }
     }
   }
 
@@ -397,5 +420,16 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
     }
 
     return spotInstances
+  }
+
+  /*
+  serverGroup.asg is accessed in deck instance.write.service
+   */
+
+  private Map<String, Object> getAsgWithCapacity(ElastigroupData data) {
+    Map<String, Object> asg = new HashMap<>();
+    asg.put("minSize", data.elastigroup.capacity.minimum);
+    asg.put("maxSize", data.elastigroup.capacity.maximum);
+    return asg
   }
 }
