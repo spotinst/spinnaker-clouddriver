@@ -405,6 +405,7 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
       SpotInstance spotInstance = new SpotInstance()
       spotInstance.setName(healthInstance.instanceId)
       spotInstance.setHealthState(SpotInstance.convertSpotHealthStatusToHealthState(healthInstance.healthStatus))
+      spotInstance.setSpotHealthStatus(healthInstance.healthStatus)
       spotInstance.setZone(healthInstance.availabilityZone)
       spotInstance.setLifecycle(healthInstance.lifeCycle)
       spotInstance.setPrivateIp(healthInstance.privateIp)

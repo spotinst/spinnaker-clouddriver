@@ -30,6 +30,7 @@ class SpotInstance implements Instance, Serializable {
   String name
   Long launchTime
   HealthState healthState
+  InstanceHealthStatusEnum spotHealthStatus
   String zone
   List<Map<String, Object>> health = []
   AwsInstanceTypeEnum type;
