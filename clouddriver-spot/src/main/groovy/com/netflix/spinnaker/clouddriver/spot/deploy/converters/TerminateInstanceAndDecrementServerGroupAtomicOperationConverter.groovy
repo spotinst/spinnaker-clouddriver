@@ -25,8 +25,8 @@ import com.netflix.spinnaker.clouddriver.spot.deploy.description.TerminateInstan
 import com.netflix.spinnaker.clouddriver.spot.deploy.ops.TerminateInstanceAndDecrementServerGroupAtomicOperation
 import org.springframework.stereotype.Component
 
+@Component("terminateInstanceAndDecrementSpotServerGroupDescription")
 @SpotOperation(AtomicOperations.TERMINATE_INSTANCE_AND_DECREMENT)
-@Component("terminateInstanceAndDecrementServerGroupDescription")
 class TerminateInstanceAndDecrementServerGroupAtomicOperationConverter extends AbstractAtomicOperationsCredentialsSupport {
   @Override
   AtomicOperation convertOperation(Map input) {

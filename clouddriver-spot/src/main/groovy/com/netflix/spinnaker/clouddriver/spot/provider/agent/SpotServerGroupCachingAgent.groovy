@@ -21,11 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.netflix.frigga.Names
 import com.netflix.spectator.api.Registry
-import com.netflix.spinnaker.cats.agent.AccountAware
-import com.netflix.spinnaker.cats.agent.AgentDataType
-import com.netflix.spinnaker.cats.agent.CacheResult
-import com.netflix.spinnaker.cats.agent.CachingAgent
-import com.netflix.spinnaker.cats.agent.DefaultCacheResult
+import com.netflix.spinnaker.cats.agent.*
 import com.netflix.spinnaker.cats.cache.CacheData
 import com.netflix.spinnaker.cats.cache.DefaultCacheData
 import com.netflix.spinnaker.cats.provider.ProviderCache
@@ -49,11 +45,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import static com.netflix.spinnaker.cats.agent.AgentDataType.Authority.AUTHORITATIVE
-import static com.netflix.spinnaker.clouddriver.core.provider.agent.Namespace.APPLICATIONS
-import static com.netflix.spinnaker.clouddriver.core.provider.agent.Namespace.CLUSTERS
-import static com.netflix.spinnaker.clouddriver.core.provider.agent.Namespace.INSTANCES
-import static com.netflix.spinnaker.clouddriver.core.provider.agent.Namespace.ON_DEMAND
-import static com.netflix.spinnaker.clouddriver.core.provider.agent.Namespace.SERVER_GROUPS
+import static com.netflix.spinnaker.clouddriver.core.provider.agent.Namespace.*
 
 /**
  * A caching agent for Spot server groups.

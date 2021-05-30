@@ -24,7 +24,7 @@ import com.netflix.spinnaker.clouddriver.spot.deploy.description.TerminateInstan
 import com.netflix.spinnaker.clouddriver.spot.deploy.ops.TerminateInstancesAtomicOperation
 import org.springframework.stereotype.Component
 
-@Component("terminateInstancesDescription")
+@Component("terminateInstancesSpotServerGroupDescription")
 @SpotOperation(AtomicOperations.TERMINATE_INSTANCES)
 class TerminateInstancesAtomicOperationConverter extends AbstractAtomicOperationsCredentialsSupport {
   @Override
