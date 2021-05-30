@@ -17,14 +17,16 @@
 
 package com.netflix.spinnaker.clouddriver.aws.deploy.userdata
 
-import com.netflix.spinnaker.clouddriver.aws.deploy.LaunchConfigurationBuilder.LaunchConfigurationSettings
+import com.netflix.frigga.Names
+import com.netflix.spinnaker.clouddriver.aws.deploy.asg.LaunchConfigurationBuilder.LaunchConfigurationSettings
+import com.netflix.spinnaker.clouddriver.aws.userdata.UserDataInput
+import com.netflix.spinnaker.clouddriver.core.services.Front50Service
 import spock.lang.Specification
 
 class LocalFileUserDataProviderSpec extends Specification {
 
   static final String APP = 'app'
   static final String STACK = 'stack'
-  static final String DETAIL = 'detail'
   static final String COUNTRIES = 'countries'
   static final String DEV_PHASE = 'devPhase'
   static final String HARDWARE = 'hardware'
@@ -35,26 +37,39 @@ class LocalFileUserDataProviderSpec extends Specification {
   static final String ACCOUNT = 'account'
   static final String ENVIRONMENT = 'environment'
   static final String ACCOUNT_TYPE = 'accountType'
+  static final String DETAIL = "detail-c0${COUNTRIES}-d0${DEV_PHASE}-h0${HARDWARE}-p0${PARTNERS}-r0${REVISION}-z0${ZONE}"
 
-  static final String ASG_NAME = "${APP}-${STACK}-${DETAIL}-c0${COUNTRIES}-d0${DEV_PHASE}-h0${HARDWARE}-p0${PARTNERS}-r0${REVISION}-z0${ZONE}"
+  static final String ASG_NAME = "${APP}-${STACK}-${DETAIL}"
   static final String LAUNCH_CONFIG_NAME = 'launchConfigName'
 
-  static final LaunchConfigurationSettings SETTINGS = new LaunchConfigurationSettings(
-      baseName: ASG_NAME,
-      region: REGION,
-      account: ACCOUNT,
-      environment: ENVIRONMENT,
-      accountType: ACCOUNT_TYPE)
+  static final LaunchConfigurationSettings SETTINGS = LaunchConfigurationSettings.builder()
+      .baseName(ASG_NAME)
+      .region(REGION)
+      .account(ACCOUNT)
+      .environment(ENVIRONMENT)
+      .accountType(ACCOUNT_TYPE)
+      .build()
+
+  static final UserDataInput INPUT = UserDataInput
+    .builder()
+    .asgName(SETTINGS.baseName)
+    .launchSettingName(LAUNCH_CONFIG_NAME)
+    .environment(SETTINGS.environment)
+    .region(SETTINGS.region)
+    .account(SETTINGS.account)
+    .accountType(SETTINGS.accountType)
+    .build()
 
   void "replaces expected strings"() {
     given:
     LocalFileUserDataProvider localFileUserDataProvider = GroovySpy()
     localFileUserDataProvider.localFileUserDataProperties = new LocalFileUserDataProperties()
+    localFileUserDataProvider.defaultUserDataTokenizer = new DefaultUserDataTokenizer()
     localFileUserDataProvider.isLegacyUdf(_, _) >> legacyUdf
     localFileUserDataProvider.assembleUserData(legacyUdf, _, _, _) >> getRawUserData()
 
     when:
-    def userData = localFileUserDataProvider.getUserData(LAUNCH_CONFIG_NAME, SETTINGS, null)
+    def userData = localFileUserDataProvider.getUserData(INPUT)
 
     then:
     userData == getFormattedUserData(expectedEnvironment)
@@ -106,5 +121,4 @@ class LocalFileUserDataProviderSpec extends Specification {
       "export LAUNCH_CONFIG=${LAUNCH_CONFIG_NAME}",
     ].join('\n')
   }
-
 }
