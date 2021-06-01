@@ -98,6 +98,7 @@ class SpotController {
         break
       case 'THREE_MONTHS':
         now.setMonth(now.getMonth() - 3)
+        now.setHours(now.getHours() + 24*1)
         break
       default:
         now.setHours(now.getHours() - 24*1)
