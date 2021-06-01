@@ -114,6 +114,7 @@ public final class AtomicOperations {
 
   // Spot oprtations
   public static final String DEPLOY_ELASTIGROUP = "deployElastigroup";
+  public static final String UPDATE_ELASTIGROUP = "updateElastigroup";
 
   // Launch Config operations
   public static final String DELETE_LAUNCH_CONFIGURATION = "deleteLaunchConfiguration";

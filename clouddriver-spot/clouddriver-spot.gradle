@@ -9,7 +9,7 @@ dependencies {
   compileOnly "org.projectlombok:lombok"
   annotationProcessor "org.projectlombok:lombok"
   testAnnotationProcessor "org.projectlombok:lombok"
-  implementation "com.spotinst:spotinst-sdk-java:1.0.37"
+  implementation "com.spotinst:spotinst-sdk-java:1.0.45"
   implementation "com.github.ben-manes.caffeine:guava"
   implementation "com.netflix.awsobjectmapper:awsobjectmapper"
   implementation "com.netflix.frigga:frigga"

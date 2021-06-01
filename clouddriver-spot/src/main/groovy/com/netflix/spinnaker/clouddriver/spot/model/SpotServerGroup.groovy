@@ -35,7 +35,8 @@ class SpotServerGroup implements ServerGroup, Serializable {
   Set health
   Map<String, Object> launchConfig
   Map<String, Object> elastigroup
-  List<ElastigroupInstanceHealthiness> elastigroupInstances
+  Map<String, Object> asg
+  List<SpotInstance> elastigroupInstances
   List<ProcessSuspensionResult> suspendedProcesses
   final String type = SpotCloudProvider.ID
   final String cloudProvider = SpotCloudProvider.ID
@@ -67,21 +68,11 @@ class SpotServerGroup implements ServerGroup, Serializable {
   @Override
   Set<Instance> getInstances() {
     Set<Instance> retVal = new HashSet<>()
-    Boolean isLbDefined = getLoadBalancers().size() > 0
 
-    for (ElastigroupInstanceHealthiness ih : elastigroupInstances) {
-      SpotInstance spotInstance = new SpotInstance()
+    List<SpotInstance> spotInstances = new ArrayList<>(elastigroupInstances);
 
-      spotInstance.setName(ih.instanceId)
-
-      if (isLbDefined) {
-        spotInstance.setHealthState(SpotInstance.convertSpotHealthStatusToHealthState(ih.healthStatus))
-      } else {
-        spotInstance.setHealthState(HealthState.OutOfService)
-      }
-      spotInstance.setZone(ih.availabilityZone)
-
-      retVal.add(spotInstance)
+    for (SpotInstance spotInstance : spotInstances) {
+      retVal.add(spotInstance);
     }
 
     return retVal

@@ -66,8 +66,7 @@ class Keys {
         result << [
           account: parts[2],
           region : parts[3],
-          name   : parts[4],
-          id     : parts[5]
+          id     : parts[4]
         ]
         break
       case Namespace.SERVER_GROUPS.ns:
