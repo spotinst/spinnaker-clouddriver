@@ -185,9 +185,6 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
       return null
     }
 
-    if (region != data.region) {
-      return null
-    }
 
     String serverGroupName = data.serverGroupName.toString()
     def elastigroupClient = this.account.elastigroupClient
@@ -197,7 +194,7 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
     CacheResult result = buildCacheResults(elastigroups)
 
     def jsonResult = objectMapper.writeValueAsString(result.cacheResults)
-    def serverGroupKey = Keys.getServerGroupKey(accountName, serverGroupName, region)
+    def serverGroupKey = Keys.getServerGroupKey(accountName, serverGroupName, data.region)
     if (result.cacheResults.values().flatten().isEmpty()) {
       providerCache.evictDeletedItems(
         ON_DEMAND.ns,
@@ -221,7 +218,7 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
       }
     }
 
-    Map<String, Collection<String>> evictions = newestElastigroup ? [:] : [(SERVER_GROUPS.ns): [serverGroupKey]]
+    Map<String, Collection<String>> evictions = elastigroups ? [:] : [(SERVER_GROUPS.ns): [serverGroupKey]]
 
     log.info "On demand cache refresh (data: ${data}) succeeded."
 
@@ -234,7 +231,8 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
 
   @Override
   Collection<Map> pendingOnDemandRequests(ProviderCache providerCache) {
-    throw new NotImplementedException();
+    List<Map> resultList = new ArrayList<>();
+    return resultList;
   }
 
 
