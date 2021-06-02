@@ -185,9 +185,6 @@ class SpotServerGroupCachingAgent implements CachingAgent, OnDemandAgent, Accoun
       return null
     }
 
-//    if (region != data.region) {
-//      return null
-//    }
 
     String serverGroupName = data.serverGroupName.toString()
     def elastigroupClient = this.account.elastigroupClient
