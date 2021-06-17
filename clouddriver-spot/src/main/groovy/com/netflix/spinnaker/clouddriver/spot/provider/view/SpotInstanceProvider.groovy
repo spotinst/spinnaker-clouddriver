@@ -44,10 +44,15 @@ class SpotInstanceProvider implements InstanceProvider<SpotInstance, String> {
 
   @Override
   public SpotInstance getInstance(String account, String region, String id) {
+    SpotInstance retVal = new SpotInstance();
     String instanceKey = Keys.getInstanceKey(id, account, region);
     CacheData cacheData = cacheView.get(INSTANCES.ns, instanceKey);
-    SpotInstance instance = new SpotInstance(cacheData.getAttributes())
-    return instance
+
+    if(cacheData != null) {
+      retVal = new SpotInstance(cacheData.getAttributes())
+    }
+
+    return retVal
   }
 
   @Override
